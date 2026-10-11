@@ -1,0 +1,2392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jivahar – Donor Dashboard</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet.js for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="dashboard.css">
+    
+    <style>
+        /* Base Structural Styles from previous step */
+        :root {
+            --sidebar-width: 260px;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.9); opacity: 0.8; }
+            50% { transform: scale(1.6); opacity: 0.3; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--dash-bg);
+            color: var(--dash-text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Sidebar Styles --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #fff;
+            border-right: 1px solid var(--dash-border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 200;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 24px;
+            height: 72px;
+            box-sizing: border-box;
+            border-bottom: 1px solid var(--dash-border);
+            cursor: pointer;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--dash-primary);
+            color: #fff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(21, 128, 61, 0.2);
+            flex-shrink: 0;
+        }
+
+        .map-tooltip {
+            position: absolute;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            top: -40px;
+            left: -50px;
+            white-space: nowrap;
+        }
+
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand-name {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--dash-primary);
+            line-height: 1.1;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-tagline {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--dash-text-muted);
+            letter-spacing: 0.3px;
+        }
+
+        .sidebar-menu {
+            display: flex;
+            flex-direction: column;
+            padding: 20px 16px;
+            gap: 6px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        /* Hide scrollbar for sidebar */
+        .sidebar-menu::-webkit-scrollbar { width: 0px; }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--dash-text-muted);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .menu-item i {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .menu-item:hover {
+            background: #f1f5f9;
+            color: var(--dash-text-main);
+        }
+
+        .menu-item.active {
+            background: var(--dash-primary);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(21, 128, 61, 0.2);
+        }
+        
+        .menu-item.active i {
+            color: #fff;
+        }
+        
+        .menu-item.has-badge {
+            justify-content: space-between;
+        }
+        .menu-badge {
+            background: var(--dash-primary);
+            color: #fff;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 12px;
+        }
+
+        /* --- Main Layout --- */
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- Topbar Styles --- */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 0 32px;
+            border-bottom: 1px solid var(--dash-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            height: 72px;
+            box-sizing: border-box;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .help-btn {
+            background: #fff;
+            border: 1px solid var(--dash-border);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--dash-text-main);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .help-btn:hover {
+            background: var(--dash-bg);
+            border-color: #cbd5e1;
+        }
+
+        .notification-icon {
+            position: relative;
+            font-size: 20px;
+            color: var(--dash-text-muted);
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .notification-icon:hover { color: var(--dash-primary); }
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -6px;
+            background: #ef4444;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            padding-left: 20px;
+            border-left: 1px solid var(--dash-border);
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--dash-primary-light);
+            color: var(--dash-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .user-name { font-size: 14px; font-weight: 700; color: var(--dash-text-main); }
+        .user-role { font-size: 11px; font-weight: 700; color: var(--dash-text-muted); text-transform: uppercase; }
+
+        /* --- Page Content Area --- */
+        .content-area {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Layout -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon">
+                <i class="fa-solid fa-bowl-food"></i>
+            </div>
+            <div class="logo-text">
+                <span class="brand-name">Jivahar</span>
+                <span class="brand-tagline">Serving Life Through Meals</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-menu">
+            <a href="#" id="tab-dashboard" class="menu-item active">
+                <i class="fa-solid fa-house"></i>
+                Dashboard
+            </a>
+            
+            <a href="#" id="tab-create-donation" class="menu-item">
+                <i class="fa-solid fa-plus"></i>
+                Create Donation
+            </a>
+
+            <a href="#" id="tab-my-donations" class="menu-item">
+                <i class="fa-regular fa-heart"></i>
+                My Donations
+            </a>
+            
+            <a href="#" id="tab-impact-reports" class="menu-item">
+                <i class="fa-solid fa-chart-line"></i>
+                Impact & Reports
+            </a>
+            
+            <div style="margin-top: auto;"></div>
+
+            <!-- Thank You Callout -->
+            <div class="sidebar-callout dash-card">
+                <i class="fa-solid fa-hand-holding-heart icon"></i>
+                <h4>Thank you for making a difference!</h4>
+                <p>Your donation can bring smiles to many.</p>
+                <div style="margin-top:16px; display:flex; justify-content:center; gap:8px;">
+                    <i class="fa-solid fa-seedling" style="color:#22c55e;"></i>
+                    <i class="fa-solid fa-seedling" style="color:#22c55e;"></i>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Bottom Actions (Help, Settings) -->
+        <div style="border-top: 1px solid var(--dash-border); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;">
+            <a href="#" id="tab-help-support" class="menu-item" style="padding: 8px 12px; margin: 0;">
+                <i class="fa-regular fa-circle-question"></i>
+                Help & Support
+            </a>
+            <a href="#" id="tab-settings" class="menu-item" style="padding: 8px 12px; margin: 0;">
+                <i class="fa-solid fa-gear"></i>
+                Settings
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+        
+        <!-- Header Topbar -->
+        <header class="topbar">
+            
+            <div class="topbar-left">
+                <button class="hamburger-btn">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="topbar-title">
+                    <h1>Dashboard</h1>
+                    <p>Track your donations, impact and community reach.</p>
+                </div>
+            </div>
+            
+            <div class="topbar-right">
+                <button class="help-btn">
+                    <i class="fa-regular fa-circle-question"></i> Need Help?
+                </button>
+                
+                <div class="notification-icon">
+                    <i class="fa-regular fa-bell"></i>
+                    <span class="notification-badge" style="display:none;">0</span>
+                </div>
+
+                <div class="user-profile">
+                    <div class="user-avatar">
+                        <i class="fa-solid fa-leaf"></i>
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name">Food Donor Partner</span>
+                        <span class="user-role">Donor</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="content-area">
+            
+            <div id="dashboard-view">
+                <div class="dashboard-grid">
+                
+                <!-- Left Main Column -->
+                <div class="dashboard-main-col">
+                    
+                    <!-- Top Stats Row -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <div class="stat-icon green"><i class="fa-solid fa-leaf"></i></div>
+                                <span class="stat-label">Total Donations</span>
+                            </div>
+                            <div class="stat-value" id="stat-total-donations">0</div>
+                            
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <div class="stat-icon orange"><i class="fa-solid fa-plate-wheat"></i></div>
+                                <span class="stat-label">Food Items Donated</span>
+                            </div>
+                            <div class="stat-value" id="stat-total-items">0</div>
+                            
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <div class="stat-icon blue"><i class="fa-solid fa-weight-scale"></i></div>
+                                <span class="stat-label">Total Food Quantity</span>
+                            </div>
+                            <div class="stat-value" id="stat-total-food">0 kg</div>
+                            
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <div class="stat-icon purple"><i class="fa-solid fa-users"></i></div>
+                                <span class="stat-label">People Impacted</span>
+                            </div>
+                            <div class="stat-value" id="stat-impact">0</div>
+                            
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="dash-card charts-card">
+                        <div class="card-header" style="margin-bottom:0;">
+                            <div>
+                                <h3 class="card-title">Donation Overview</h3>
+                                <p class="card-subtitle">Your contribution makes a real difference.</p>
+                            </div>
+                            <select class="filter-select">
+                                <option>Last 7 days</option>
+                                <option>Last 30 days</option>
+                            </select>
+                        </div>
+                        
+                        <div class="charts-row">
+                            <!-- Donut Chart Area -->
+                            <div style="display:flex; align-items:center; gap:24px;">
+                                <div class="chart-container" style="width:160px; height:160px;">
+                                    <canvas id="donutChart"></canvas>
+                                    <div class="donut-center">
+                                        <h2 id="overview-total-donations-center">0</h2>
+                                        <p>Total Donations</p>
+                                    </div>
+                                </div>
+                                <div style="flex:1;">
+                                    <div class="legend-item">
+                                        <span><div class="legend-dot" style="background:#22c55e;"></div> Completed</span>
+                                        <strong id="overview-completed">0 (0%)</strong>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span><div class="legend-dot" style="background:#f59e0b;"></div> In Progress</span>
+                                        <strong id="overview-inprogress">0 (0%)</strong>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span><div class="legend-dot" style="background:#ef4444;"></div> Cancelled</span>
+                                        <strong id="overview-cancelled">0 (0%)</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bar Chart Area -->
+                            <div style="display:flex; flex-direction:column;">
+                                <span style="font-size:12px; font-weight:700; margin-bottom:8px;">Food Quantity (kg)</span>
+                                <div class="chart-container" style="flex:1; width:100%; height:160px;">
+                                    <canvas id="barChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Split Row -->
+                    <div class="bottom-split">
+                        
+                        <!-- Map Card -->
+                        <div class="dash-card" style="display:flex; flex-direction:column;">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">Live Pickup & Accepted NGO Dispatch Map</h3>
+                                    <p class="card-subtitle">Showing accepted NGO location, donor pickup point & shortest route</p>
+                                </div>
+                            </div>
+                            <div class="map-container" style="height:320px; position:relative;">
+                                <!-- Interactive Map -->
+                                <div id="pickupMap" style="width: 100%; height: 100%; border-radius: 12px; z-index: 1;"></div>
+                            </div>
+                            <div id="donorAcceptedRouteCardContainer" style="margin-top:14px;"></div>
+                        </div>
+
+                        <!-- Nearby Verified NGOs List -->
+                        <div class="dash-card">
+                            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+                                <div>
+                                    <h3 class="card-title" style="margin:0; font-size:16px; font-weight:700; color:#1e293b;">Nearby Verified NGOs</h3>
+                                    <p class="card-subtitle" style="margin:2px 0 0 0; font-size:12px; color:#64748b;">Registered shelters & food distribution partners within radius</p>
+                                </div>
+                                <span style="font-size:11px; font-weight:700; background:#dcfce7; color:#166534; padding:4px 10px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-shield-halved"></i> 100% Verified</span>
+                            </div>
+                            <div class="ngo-list-container" id="nearby-ngos-list" style="display:flex; flex-direction:column; gap:12px;">
+                                <p style="text-align:center; color:#94a3b8; font-size:13px; padding:20px;">Loading nearby registered NGOs...</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Right Side Column Removed -->
+                </div>
+            </div> <!-- End Dashboard View -->
+
+            <!-- Create Donation View -->
+            <div id="create-donation-view" style="display: none;">
+                
+                <!-- Stepper -->
+                <div class="stepper-container">
+                    <div class="step active" id="stepper-1">
+                        <div class="step-circle"><i id="stepper-1-icon" class="fa-solid fa-check"></i></div>
+                        <span class="step-label">Food Items</span>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" id="stepper-2">
+                        <div class="step-circle">2</div>
+                        <span class="step-label">Pickup Details</span>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" id="stepper-3">
+                        <div class="step-circle"><i id="stepper-3-icon">3</i></div>
+                        <span class="step-label">Additional Information</span>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" id="stepper-4">
+                        <div class="step-circle"><i id="stepper-4-icon">4</i></div>
+                        <span class="step-label">Review & Confirm</span>
+                    </div>
+                </div>
+
+                <!-- Main Layout -->
+                <div class="create-donation-grid">
+                    
+                    <!-- Left Column: Form & Lists -->
+                    <div class="cd-main-col">
+                        
+                        <!-- STEP 1: Food Items -->
+                        <div id="step-food-content">
+                            <div class="dash-card">
+                            <div class="food-items-header">
+                                <div>
+                                    <h3 class="card-title"><i class="fa-regular fa-calendar" style="color:var(--dash-primary); margin-right:8px;"></i> Food Items</h3>
+                                    <p class="card-subtitle">Add multiple food items to the same donation. Each item will have its own details and expiry information.</p>
+                                </div>
+                            </div>
+                            
+                            <h5 style="margin: 24px 0 16px 0; font-size: 13px;" id="added-items-header" style="display:none;">Added Items (0)</h5>
+                            
+                            <!-- Food List -->
+                            <div class="food-list" id="dynamic-food-list">
+</div>
+<button id="btn-show-add-form" class="btn-add-item" onclick="document.getElementById('add-item-form-container').style.display='block'; this.style.display='none';">
+                                <i class="fa-solid fa-plus"></i> Add Another Food Item
+                            </button>
+
+                            <!-- Add Item Inline Form -->
+                            <div id="add-item-form-container" class="add-item-form" style="display:none;">
+                                <div class="form-header">
+                                    <h4>Add Food Item</h4>
+                                    <i class="fa-solid fa-xmark" id="btn-close-form" onclick="document.getElementById('add-item-form-container').style.display='none'; document.getElementById('btn-show-add-form').style.display='flex';"></i>
+                                </div>
+                                <div class="form-grid">
+                                    <label class="photo-upload" id="photo-upload-container" style="cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden; background-size: cover; background-position: center; border: 1px dashed var(--dash-border); border-radius: 8px; padding: 20px;">
+                                        <input type="file" id="add-item-photo" accept="image/*" style="display:none;" onchange="
+                                            const file = this.files[0];
+                                            const textSpan = document.getElementById('photo-upload-text');
+                                            const container = document.getElementById('photo-upload-container');
+                                            if (file) {
+                                                textSpan.innerText = file.name;
+                                                const reader = new FileReader();
+                                                reader.onload = function(e) {
+                                                    container.style.backgroundImage = 'url(' + e.target.result + ')';
+                                                    container.querySelector('.fa-camera').style.opacity = '0.8';
+                                                    container.querySelector('.fa-camera').style.color = '#fff';
+                                                    container.querySelector('.fa-camera').style.textShadow = '0 1px 4px rgba(0,0,0,0.8)';
+                                                    textSpan.style.color = '#fff';
+                                                    textSpan.style.background = 'rgba(0,0,0,0.6)';
+                                                    textSpan.style.padding = '2px 6px';
+                                                    textSpan.style.borderRadius = '4px';
+                                                };
+                                                reader.readAsDataURL(file);
+                                            } else {
+                                                textSpan.innerText = 'Upload Photo';
+                                                container.style.backgroundImage = 'none';
+                                                container.querySelector('.fa-camera').style.opacity = '1';
+                                                container.querySelector('.fa-camera').style.color = '';
+                                                container.querySelector('.fa-camera').style.textShadow = 'none';
+                                                textSpan.style.color = '';
+                                                textSpan.style.background = 'none';
+                                            }
+                                        ">
+                                        <i class="fa-solid fa-camera" style="z-index: 1; font-size: 24px; margin-bottom: 8px;"></i>
+                                        <span id="photo-upload-text" style="z-index: 1; font-weight: 500;">Upload Photo</span>
+                                        <span style="color:#94a3b8; font-size:10px; z-index: 1; margin-top: 4px;" id="photo-upload-optional">(Optional)</span>
+                                    </label>
+                                    
+                                    <div style="display:flex; flex-direction:column; gap:16px;">
+                                        <div class="fields-grid">
+                                            <div class="form-group">
+                                                <label>Food Item Name <span>*</span></label>
+                                                <input type="text" class="form-control" id="add-item-name" placeholder="e.g. Veg Biryani">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Category <span>*</span></label>
+                                                <select class="form-control" id="add-item-category">
+                                                    <option>Select Category</option>
+                                                    <option>Cooked Food</option>
+                                                    <option>Raw Ingredients</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Food Type <span>*</span></label>
+                                                <select class="form-control" id="add-item-type">
+                                                    <option>Select Type</option>
+                                                    <option>Veg</option>
+                                                    <option>Non-Veg</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="fields-grid">
+                                            <div class="form-group">
+                                                <label>Quantity <span>*</span></label>
+                                                <input type="number" class="form-control" id="add-item-qty" placeholder="1" min="1" oninput="if(this.value < 1 && this.value !== '') this.value = 1;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Unit <span>*</span></label>
+                                                <select class="form-control" id="add-item-unit">
+                                                    <option>Select Unit</option>
+                                                    <option>kg</option>
+                                                    <option>litres</option>
+                                                    <option>pieces</option>
+                                                    <option>plates</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Number of Packages <span>*</span></label>
+                                                <input type="number" class="form-control" id="add-item-pkgs" placeholder="1" min="1" oninput="if(this.value < 1 && this.value !== '') this.value = 1;">
+                                            </div>
+                                        </div>
+
+                                        <div class="fields-grid">
+                                            <div class="form-group">
+                                                <label>Prepared Date & Time <span>*</span></label>
+                                                <input type="datetime-local" class="form-control" id="add-item-prep">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Best Before <span>*</span></label>
+                                                <input type="datetime-local" class="form-control" id="add-item-best">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Packaging Type <span>*</span></label>
+                                                <select class="form-control" id="add-item-pkg-type">
+                                                    <option>Select Packaging</option>
+                                                    <option>Food Grade Container</option>
+                                                    <option>Foil</option>
+                                                    <option>Box</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label>Description <span>(Optional)</span></label>
+                                            <input type="text" class="form-control" placeholder="Add any additional details about the food item...">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button class="btn btn-secondary" onclick="document.getElementById('add-item-form-container').style.display='none'; document.getElementById('btn-show-add-form').style.display='flex';">Cancel</button>
+                                    <button class="btn btn-primary" id="btn-add-food-item" onclick="document.getElementById('add-item-form-container').style.display='none'; document.getElementById('btn-show-add-form').style.display='flex';">Add Item</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Info Alert -->
+                            <div class="info-alert">
+                                <div class="info-icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div class="info-content">
+                                    <h5>Need to add more items?</h5>
+                                    <p>You can add multiple food items to one donation. Each item will have its own quantity, dates and details.</p>
+                                </div>
+                            </div>
+
+                        </div>
+                        
+                        <div style="display:flex; justify-content:space-between; padding-top:16px;">
+                            <button class="btn btn-secondary" style="border: 1px solid var(--dash-border);"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                            <button class="btn btn-primary" style="padding: 10px 32px;" onclick="document.getElementById('step-food-content').style.display='none'; document.getElementById('step-pickup-content').style.display='block'; document.getElementById('stepper-1').classList.add('completed'); document.getElementById('stepper-1-icon').className='fa-solid fa-check'; document.getElementById('stepper-2').classList.add('active');">Next <i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                        </div> <!-- End Step 1 -->
+
+                        <!-- STEP 2: Pickup Details -->
+                        <div id="step-pickup-content" style="display:none;">
+                            
+                            <!-- Pickup Location Card -->
+                            <div class="dash-card">
+                                <div class="card-header" style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                    <h3 class="card-title"><i class="fa-solid fa-location-dot" style="color:var(--dash-primary); margin-right:8px;"></i> Donation Pickup Location</h3>
+                                    <button type="button" class="btn btn-secondary" id="btn-donor-gps-locate" style="padding:6px 12px; font-size:12px; border:1px solid #16a34a; background:#e6f4ea; color:#137333; font-weight:700; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="if(window.donorPickupPicker) window.donorPickupPicker.useCurrentGpsLocation();">
+                                        <i class="fa-solid fa-location-crosshairs"></i> 🎯 Use Current Location
+                                    </button>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:14px;">
+                                    <!-- Search Address Bar -->
+                                    <div style="position:relative;">
+                                        <div style="display:flex; gap:8px;">
+                                            <input type="text" class="form-control" id="donorPickupSearchInput" placeholder="Search address, landmark or area..." onkeyup="if(window.donorPickupPicker) window.donorPickupPicker.searchAddress(this.value);">
+                                            <button type="button" class="btn btn-secondary" onclick="if(window.donorPickupPicker) window.donorPickupPicker.searchAddress(document.getElementById('donorPickupSearchInput').value);" style="padding:8px 14px; font-size:12px; font-weight:700;">Search</button>
+                                        </div>
+                                        <div id="donorPickupSearchResults" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.15); z-index:100; max-height:180px; overflow-y:auto;"></div>
+                                    </div>
+
+                                    <!-- Interactive Leaflet Map Picker -->
+                                    <div id="donorPickupPickerMap" style="height: 220px; width:100%; border-radius:12px; border:1px solid #e2e8f0;"></div>
+
+                                    <div style="font-size:11px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:6px; display:flex; align-items:center; gap:6px;">
+                                        <i class="fa-solid fa-hand-pointer" style="color:#16a34a;"></i> Click anywhere on map or drag 📦 Green Pin to set exact pickup coordinates.
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Formatted Pickup Address <span>*</span></label>
+                                        <input type="text" class="form-control" id="input-pickup-address1" placeholder="e.g. 12th Main Road, Ballari">
+                                    </div>
+                                    <div class="fields-grid" style="grid-template-columns: 1fr 1fr;">
+                                        <div class="form-group">
+                                            <label>Pickup Latitude</label>
+                                            <input type="text" class="form-control" id="input-pickup-lat" readonly style="background:#f1f5f9;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Pickup Longitude</label>
+                                            <input type="text" class="form-control" id="input-pickup-lng" readonly style="background:#f1f5f9;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Contact Card -->
+                            <div class="dash-card" style="margin-top:24px;">
+                                <div class="card-header" style="margin-bottom:16px;">
+                                    <h3 class="card-title"><i class="fa-regular fa-user" style="color:var(--dash-primary); margin-right:8px;"></i> Contact Person</h3>
+                                </div>
+                                <div class="fields-grid" style="grid-template-columns: 1fr 1fr;">
+                                    <div class="form-group">
+                                        <label>Name <span>*</span></label>
+                                        <input type="text" class="form-control" id="input-contact-name" placeholder="e.g. Contact Person Name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Phone Number <span>*</span></label>
+                                        <input type="text" class="form-control" id="input-contact-phone" placeholder="+91 98765 43210">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Buttons -->
+                            <div style="display:flex; justify-content:space-between; padding-top:16px;">
+                                <button class="btn btn-secondary" style="border: 1px solid var(--dash-border);" onclick="document.getElementById('step-pickup-content').style.display='none'; document.getElementById('step-food-content').style.display='block'; document.getElementById('stepper-2').classList.remove('active'); document.getElementById('stepper-1').classList.remove('completed'); document.getElementById('stepper-1-icon').className=''; document.getElementById('stepper-1-icon').textContent='1';"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                                <button class="btn btn-primary" style="padding: 10px 32px;" onclick="document.getElementById('step-pickup-content').style.display='none'; document.getElementById('step-info-content').style.display='block'; document.getElementById('stepper-2').classList.add('completed'); document.getElementById('stepper-2').querySelector('.step-circle').innerHTML = '<i class=\'fa-solid fa-check\'></i>'; document.getElementById('stepper-3').classList.add('active');">Next <i class="fa-solid fa-arrow-right"></i></button>
+                            </div>
+
+                        </div> <!-- End Step 2 -->
+
+                        <!-- STEP 3: Additional Information -->
+                        <div id="step-info-content" style="display:none;">
+                            
+                            <!-- Additional Info Card -->
+                            <div class="dash-card">
+                                <div class="card-header" style="margin-bottom:16px;">
+                                    <h3 class="card-title"><i class="fa-solid fa-circle-info" style="color:var(--dash-primary); margin-right:8px;"></i> Additional Information</h3>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:16px;">
+                                    
+                                    <div class="form-group">
+                                        <label>Special Transport Required? <span>*</span></label>
+                                        <div style="display:flex; gap:16px; margin-top:8px;">
+                                            <label style="display:flex; align-items:center; gap:8px; font-weight:normal; text-transform:none; color:var(--dash-text-main);">
+                                                <input type="radio" name="transport" value="no" checked> No special transport
+                                            </label>
+                                            <label style="display:flex; align-items:center; gap:8px; font-weight:normal; text-transform:none; color:var(--dash-text-main);">
+                                                <input type="radio" name="transport" value="yes"> Yes (e.g., Refrigerated Van)
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label>Vehicle Constraints <span>*</span></label>
+                                        <select class="form-control" id="input-vehicle-constraints">
+                                            <option>Any Vehicle</option>
+                                            <option selected>Two Wheeler Suitable</option>
+                                            <option>Four Wheeler Required</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Handling Instructions / Dietary Notes (Optional)</label>
+                                        <textarea class="form-control" rows="4" placeholder="Any specific instructions for volunteers or NGO partners? (e.g. keep refrigerated, nut allergy warning)"></textarea>
+                                    </div>
+                                    
+                                </div>
+                            </div>
+
+                            <!-- Bottom Buttons -->
+                            <div style="display:flex; justify-content:space-between; padding-top:16px;">
+                                <button class="btn btn-secondary" style="border: 1px solid var(--dash-border);" onclick="document.getElementById('step-info-content').style.display='none'; document.getElementById('step-pickup-content').style.display='block'; document.getElementById('stepper-3').classList.remove('active'); document.getElementById('stepper-2').classList.remove('completed'); document.getElementById('stepper-2').querySelector('.step-circle').innerHTML = '2';"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                                <button class="btn btn-primary" style="padding: 10px 32px;" onclick="document.getElementById('step-info-content').style.display='none'; document.getElementById('step-review-content').style.display='block'; document.getElementById('stepper-3').classList.add('completed'); document.getElementById('stepper-3').querySelector('.step-circle').innerHTML = '<i class=\'fa-solid fa-check\'></i>'; document.getElementById('stepper-4').classList.add('active'); if (window.updateReviewStep) window.updateReviewStep();">Next <i class="fa-solid fa-arrow-right"></i></button>
+                            </div>
+
+                        </div> <!-- End Step 3 -->
+
+                        <!-- STEP 4: Review & Confirm -->
+                        <div id="step-review-content" style="display:none;">
+                            
+                            <div class="dash-card" style="text-align: center; margin-bottom: 24px;">
+                                <div style="width:64px; height:64px; background:#f0fdf4; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+                                    <i class="fa-solid fa-clipboard-check" style="font-size:24px; color:var(--dash-primary);"></i>
+                                </div>
+                                <h3 style="font-size: 20px; font-weight: 700; color: var(--dash-text-main); margin-bottom:8px;">Review Your Donation</h3>
+                                <p style="color:var(--dash-text-muted); font-size:14px; max-width:400px; margin:0 auto;">Please review the details of your donation before submitting. Your contribution will be routed to a nearby NGO.</p>
+                            </div>
+                            
+                            <div class="dash-card">
+                                <h4 style="font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--dash-border); padding-bottom: 8px;">1. Food Items</h4>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:14px;">
+                                    <span style="color:var(--dash-text-muted);">Total Items:</span>
+                                    <span style="font-weight:600;" id="review-total-items">-</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:14px;">
+                                    <span style="color:var(--dash-text-muted);">Total Weight:</span>
+                                    <span style="font-weight:600;" id="review-total-weight">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="dash-card" style="margin-top:24px;">
+                                <h4 style="font-size: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--dash-border); padding-bottom: 8px;">2. Pickup & Contact</h4>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:14px;">
+                                    <span style="color:var(--dash-text-muted);">Location:</span>
+                                    <span style="font-weight:600; text-align:right;" id="review-pickup-address">-</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:14px;">
+                                    <span style="color:var(--dash-text-muted);">Schedule:</span>
+                                    <span style="font-weight:600;" id="review-pickup-schedule">-</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:14px;">
+                                    <span style="color:var(--dash-text-muted);">Contact:</span>
+                                    <span style="font-weight:600;" id="review-pickup-contact">-</span>
+                                </div>
+                            </div>
+
+
+                            <div class="dash-card" style="margin-top:24px;">
+                                <label style="display:flex; align-items:flex-start; gap:12px; font-weight:normal; text-transform:none; color:var(--dash-text-main); font-size:14px; cursor:pointer;">
+                                    <input type="checkbox" style="margin-top:4px;" checked>
+                                    <span>I confirm that the food being donated is safe for consumption and adheres to the safety guidelines provided by Jivahar. I agree to the <a href="#" style="color:var(--dash-primary); text-decoration:underline;">Terms & Conditions</a>.</span>
+                                </label>
+                            </div>
+
+                            <!-- Bottom Buttons -->
+                            <div style="display:flex; justify-content:space-between; padding-top:16px;">
+                                <button class="btn btn-secondary" style="border: 1px solid var(--dash-border);" onclick="document.getElementById('step-review-content').style.display='none'; document.getElementById('step-info-content').style.display='block'; document.getElementById('stepper-4').classList.remove('active'); document.getElementById('stepper-3').classList.remove('completed'); document.getElementById('stepper-3').querySelector('.step-circle').innerHTML = '3';"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                                <button class="btn btn-primary" style="padding: 10px 32px; font-weight:bold;" id="btn-submit-donation">Submit Donation</button>
+                            </div>
+
+                        </div> <!-- End Step 4 -->
+                    </div>
+
+                    <!-- Right Column: Summary Panels -->
+                    <div class="cd-side-col">
+                        
+                        <!-- Unified Step-by-Step Summary -->
+                        <div class="dash-card unified-summary-card">
+                            <style>
+                                .unified-summary-card { padding: 20px; }
+                                .summary-stepper { display: flex; flex-direction: column; }
+                                .summary-step { display: flex; gap: 16px; min-height: 80px; position: relative; }
+                                .summary-step:last-child { min-height: auto; }
+                                .step-indicator { display: flex; flex-direction: column; align-items: center; width: 24px; }
+                                .step-indicator .circle { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; z-index: 2; }
+                                .step-indicator .circle.completed { background: var(--dash-primary); color: white; }
+                                .step-indicator .circle.pending { background: #e2e8f0; color: #64748b; }
+                                .step-indicator .line { flex: 1; width: 2px; background: #e2e8f0; margin-top: 4px; margin-bottom: 4px; }
+                                .step-content { flex: 1; padding-bottom: 24px; }
+                                .summary-step:last-child .step-content { padding-bottom: 0; }
+                                .compact-summary-list { display: flex; flex-direction: column; gap: 8px; }
+                                .pickup-info-row.compact i { font-size: 14px; margin-top: 2px; color: #94a3b8; width: 16px; text-align: center; }
+                                .pickup-info-row.compact .pickup-details span { color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; font-weight: 600; display: block; margin-bottom: 2px;}
+                                .pickup-info-row.compact .pickup-details p { margin: 0; font-size: 13px; color: var(--dash-text-main); font-weight: 500; }
+                                .pickup-info-row.compact { margin-bottom: 12px; display: flex; gap: 12px; align-items: flex-start; }
+                            </style>
+
+                            <div class="card-header" style="margin-bottom:20px;">
+                                <h3 class="card-title">Donation Overview</h3>
+                            </div>
+                            
+                            <div class="summary-stepper">
+                                
+                                <!-- Step 1: Items -->
+                                <div class="summary-step">
+                                    <div class="step-indicator">
+                                        <div class="circle completed"><i class="fa-solid fa-check"></i></div>
+                                        <div class="line"></div>
+                                    </div>
+                                    <div class="step-content">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                            <h4 style="font-size:14px; font-weight:600; margin:0;">1. Food Items</h4>
+                                            <span class="badge badge-green" style="background:#f0fdf4;" id="summary-item-count">0 Items</span>
+                                        </div>
+                                        
+                                        <!-- Compact item list -->
+                                        <div class="compact-summary-list">
+<!-- Dynamic summary items here -->
+</div>
+<div style="margin-top:12px; padding:10px; background:#f8fafc; border-radius:6px; display:flex; justify-content:space-around; text-align:center;">
+                                            <div>
+                                                <span style="font-size:11px; color:var(--dash-text-muted); display:block;">Total Weight</span>
+                                                <strong style="font-size:12px;" id="summary-total-weight">0 kg</strong>
+                                            </div>
+                                            <div>
+                                                <span style="font-size:11px; color:var(--dash-text-muted); display:block;">Packages</span>
+                                                <strong style="font-size:12px;" id="summary-total-packages">0</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2: Pickup -->
+                                <div class="summary-step">
+                                    <div class="step-indicator">
+                                        <div class="circle pending" id="summary-step-2-circle">2</div>
+                                        <div class="line"></div>
+                                    </div>
+                                    <div class="step-content" style="padding-top:4px;">
+                                        <h4 style="font-size:14px; font-weight:600; margin:0; margin-bottom:12px;">2. Pickup Details</h4>
+                                        
+                                        <div class="pickup-info-row compact">
+                                            <i class="fa-solid fa-location-dot"></i>
+                                            <div class="pickup-details">
+                                                <span>Pickup Address</span>
+                                                <p id="summary-pickup-address">Not set</p>
+                                            </div>
+                                        </div>
+                                                                                
+                                        <div class="pickup-info-row compact" style="margin-bottom:0;">
+                                            <i class="fa-regular fa-user"></i>
+                                            <div class="pickup-details">
+                                                <span>Contact</span>
+                                                <p id="summary-pickup-contact">Not set</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Step 3: Info -->
+                                <div class="summary-step">
+                                    <div class="step-indicator">
+                                        <div class="circle pending" id="summary-step-3-circle">3</div>
+                                    </div>
+                                    <div class="step-content" style="padding-top:4px;">
+                                        <h4 style="font-size:14px; font-weight:600; margin:0; margin-bottom:12px;">3. Additional Info</h4>
+                                        <div class="pickup-info-row compact" style="margin-bottom:0;">
+                                            <i class="fa-solid fa-truck"></i>
+                                            <div class="pickup-details">
+                                                <span>Transport</span>
+                                                <p id="summary-transport">Not set</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div> <!-- End cd-side-col -->
+                </div>
+            </div> <!-- End Create Donation View -->
+            
+            <!-- My Donations View -->
+            <div id="my-donations-view" style="display: none;">
+                <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr; align-items: start; gap: 24px;">
+                    
+                    <!-- LEFT COLUMN: Main Table Area -->
+                    <div class="dash-card" style="padding: 24px;">
+                        
+                        <!-- Top Controls: Search, Status, Date Range, Filter -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+                            <div style="position:relative; flex-grow:1; max-width:280px;">
+                                <i class="fa-solid fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8;"></i>
+                                <input type="text" class="form-control" placeholder="Search by food item, NGO, or ID..." style="padding-left:36px; height:40px; font-size:13px; border-radius:6px;">
+                            </div>
+                            
+                            <div style="display:flex; gap:12px; align-items:center;">
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span style="font-size:11px; color:var(--dash-text-muted); font-weight:600; padding-left:4px;">Status</span>
+                                    <select class="form-control" style="height:40px; font-size:13px; min-width:140px; border-radius:6px; background:#fff;">
+                                        <option>All Status</option>
+                                        <option>Delivered</option>
+                                        <option>Picked Up</option>
+                                        <option>Cancelled</option>
+                                    </select>
+                                </div>
+                                
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <span style="font-size:11px; color:var(--dash-text-muted); font-weight:600; padding-left:4px;">Date Range</span>
+                                    <div style="position:relative;">
+                                        <input type="text" class="form-control" value="May 1, 2024 - May 27, 2024" style="height:40px; font-size:13px; min-width:220px; border-radius:6px; background:#fff; padding-right:36px;">
+                                        <i class="fa-regular fa-calendar" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8;"></i>
+                                    </div>
+                                </div>
+                                
+                                <div style="display:flex; flex-direction:column; gap:4px; align-self:flex-end;">
+                                    <button class="btn btn-secondary" style="height:40px; font-size:13px; background:#fff; border:1px solid var(--dash-border);"><i class="fa-solid fa-filter" style="margin-right:6px;"></i> Filters</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Summary Badges/Tabs -->
+                        <div id="donation-history-tabs" style="display:flex; gap:24px; align-items:center; border-bottom:1px solid var(--dash-border); padding-bottom:16px; margin-bottom:24px;">
+                            <div class="history-tab active" data-filter="all" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <span class="tab-label" style="font-weight:700; color:var(--dash-primary); font-size:14px; transition:color 0.2s;">All Donations</span>
+                                <span id="count-all-donations" style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+                            </div>
+                            <div class="history-tab" data-filter="completed" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <span class="tab-label" style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Completed</span>
+                                <span id="count-completed-donations" style="background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+                            </div>
+                            <div class="history-tab" data-filter="picked-up" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <span class="tab-label" style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Picked Up</span>
+                                <span id="count-picked-up-donations" style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+                            </div>
+                            <div class="history-tab" data-filter="delivered" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <span class="tab-label" style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Delivered</span>
+                                <span id="count-delivered-donations" style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+                            </div>
+                            <div class="history-tab" data-filter="cancelled" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <span class="tab-label" style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Cancelled</span>
+                                <span id="count-cancelled-donations" style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Data Table -->
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%; text-align:left; border-collapse:collapse; min-width:800px;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid var(--dash-border);">
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">Donation</th>
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">Donation ID</th>
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">Date & Time</th>
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">Quantity</th>
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">Status</th>
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">NGO / Receiver</th>
+                                        <th style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase; text-align:right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="donations-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--dash-border);">
+                            <span id="donations-pagination-info" style="font-size:13px; color:var(--dash-text-muted);">Showing 0 of 0 donations</span>
+                            
+                            <div style="display:flex; gap:4px;">
+                                <button class="btn btn-secondary page-btn" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; color:var(--dash-text-muted);"><i class="fa-solid fa-chevron-left"></i></button>
+                                <button class="btn btn-primary page-btn page-number active" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:700;">1</button>
+                                <button class="btn btn-secondary page-btn page-number" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">2</button>
+                                <button class="btn btn-secondary page-btn page-number" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">3</button>
+                                <button class="btn btn-secondary page-btn page-number" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">4</button>
+                                <span style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; color:var(--dash-text-muted);">...</span>
+                                <button class="btn btn-secondary page-btn page-number" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">7</button>
+                                <button class="btn btn-secondary page-btn" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; color:var(--dash-text-muted);"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                            
+                            <select class="form-control" style="width:auto; font-size:12px; height:32px; padding:0 24px 0 12px; background:#fff;">
+                                <option>10 / page</option>
+                                <option>20 / page</option>
+                                <option>50 / page</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                    <!-- Tab Logic -->
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const tabs = document.querySelectorAll('.history-tab');
+                            const rows = document.querySelectorAll('.history-row');
+
+                            tabs.forEach(tab => {
+                                tab.addEventListener('click', () => {
+                                    // Reset all tabs
+                                    tabs.forEach(t => {
+                                        t.classList.remove('active');
+                                        const label = t.querySelector('.tab-label');
+                                        label.style.fontWeight = '500';
+                                        label.style.color = 'var(--dash-text-muted)';
+                                    });
+
+                                    // Set active tab
+                                    tab.classList.add('active');
+                                    const activeLabel = tab.querySelector('.tab-label');
+                                    activeLabel.style.fontWeight = '700';
+                                    activeLabel.style.color = 'var(--dash-primary)';
+
+                                    // Filter rows
+                                    const filter = tab.getAttribute('data-filter');
+                                    rows.forEach(row => {
+                                        if (filter === 'all') {
+                                            row.style.display = 'table-row';
+                                        } else if (filter === 'completed') {
+                                            if (row.getAttribute('data-completed') === 'true') {
+                                                row.style.display = 'table-row';
+                                            } else {
+                                                row.style.display = 'none';
+                                            }
+                                        } else {
+                                            if (row.getAttribute('data-status') === filter) {
+                                                row.style.display = 'table-row';
+                                            } else {
+                                                row.style.display = 'none';
+                                            }
+                                        }
+                                    });
+                                });
+                            });
+
+                            // Pagination click logic
+                            const pageNumbers = document.querySelectorAll('.page-number');
+                            pageNumbers.forEach(page => {
+                                page.addEventListener('click', () => {
+                                    pageNumbers.forEach(p => {
+                                        p.classList.remove('btn-primary', 'active');
+                                        p.classList.add('btn-secondary');
+                                        p.style.background = '#fff';
+                                        p.style.border = '1px solid var(--dash-border)';
+                                    });
+                                    page.classList.remove('btn-secondary');
+                                    page.classList.add('btn-primary', 'active');
+                                    page.style.background = '';
+                                    page.style.border = 'none';
+                                });
+                            });
+
+                        });
+                    </script>
+                    
+                    <!-- RIGHT COLUMN: Sidebar Widgets -->
+                    <div style="display:flex; flex-direction:column; gap:24px;">
+                        
+                        <!-- Donation Summary Widget -->
+                        <div class="dash-card">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                                <h4 style="margin:0; font-size:15px; font-weight:700;">Donation Summary</h4>
+                                <select class="form-control" style="width:auto; font-size:12px; height:28px; padding:0 24px 0 8px;">
+                                    <option>This Month</option>
+                                    <option>All Time</option>
+                                </select>
+                            </div>
+                            
+                            <div style="display:flex; flex-direction:column; gap:20px;">
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:40px; height:40px; border-radius:50%; background:#dcfce7; color:#166534; display:flex; align-items:center; justify-content:center; font-size:16px;"><i class="fa-solid fa-leaf"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:12px; color:var(--dash-text-muted);">Total Donations</p>
+                                        <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);" id="sidebar-total-donations">0</p>
+                                        
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:40px; height:40px; border-radius:50%; background:#dcfce7; color:#166534; display:flex; align-items:center; justify-content:center; font-size:16px;"><i class="fa-solid fa-bowl-food"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:12px; color:var(--dash-text-muted);">Total Food Donated</p>
+                                        <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);" id="sidebar-total-food">0 <span style="font-size:13px; font-weight:500;">kg</span></p>
+                                        
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:40px; height:40px; border-radius:50%; background:#ffedd5; color:#c2410c; display:flex; align-items:center; justify-content:center; font-size:16px;"><i class="fa-solid fa-users"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:12px; color:var(--dash-text-muted);">People Fed</p>
+                                        <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);" id="sidebar-people-fed">0</p>
+                                        
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:40px; height:40px; border-radius:50%; background:#eff6ff; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:16px;"><i class="fa-solid fa-cloud"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:12px; color:var(--dash-text-muted);">CO2 Saved</p>
+                                        <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);" id="sidebar-total-co2">0 <span style="font-size:13px; font-weight:500;">kg</span></p>
+                                        
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-secondary" style="width:100%; margin-top:24px; border:1px solid #10b981; color:#10b981; font-weight:600; background:#fff;">View Impact Report</button>
+                        </div>
+                        
+                        <!-- Top NGO Partners Widget -->
+                        <div class="dash-card">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                                <h4 style="margin:0; font-size:15px; font-weight:700;">Top NGO Partners</h4>
+                                <a href="#" style="font-size:12px; color:var(--dash-primary); text-decoration:none; font-weight:600;">View All</a>
+                            </div>
+<div style="display:flex; flex-direction:column; gap:16px;" id="top-ngo-list"><p style="font-size:12px; color:#666;">No data available.</p></div>
+</div>
+
+                        
+                        <!-- Download Center Widget -->
+                        <div class="dash-card">
+                            <h4 style="margin:0 0 16px 0; font-size:15px; font-weight:700;">Download Center</h4>
+                            <div style="display:flex; flex-direction:column; gap:12px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--dash-border); cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <i class="fa-regular fa-file-pdf" style="color:var(--dash-text-muted);"></i>
+                                        <span style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Donation History (PDF)</span>
+                                    </div>
+                                    <i class="fa-solid fa-download" style="color:var(--dash-text-muted); font-size:12px;"></i>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <i class="fa-regular fa-file-excel" style="color:var(--dash-text-muted);"></i>
+                                        <span style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Donation History (Excel)</span>
+                                    </div>
+                                    <i class="fa-solid fa-download" style="color:var(--dash-text-muted); font-size:12px;"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Need Help -->
+                        <div class="dash-card" style="background:#f8fafc; border:1px solid #e2e8f0;">
+                            <h4 style="margin:0 0 8px 0; font-size:14px; font-weight:700;">Need Help?</h4>
+                            <p style="margin:0 0 16px 0; font-size:12px; color:var(--dash-text-muted);">Facing any issue with your donations?</p>
+                            <button class="btn btn-secondary" style="width:100%; border:1px solid var(--dash-primary); color:var(--dash-primary); background:#fff; font-size:13px; font-weight:600;"><i class="fa-solid fa-headset" style="margin-right:6px;"></i> Contact Support</button>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div> <!-- End My Donations View -->
+
+            <!-- Impact & Reports View -->
+            <div id="impact-reports-view" style="display: none;">
+                <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr; align-items: start; gap: 24px;">
+                    
+                    <!-- LEFT COLUMN: Main Impact Analytics -->
+                    <div style="display:flex; flex-direction:column; gap:24px;">
+                        
+                        <!-- Top Analytics Card -->
+                        <div class="dash-card">
+                            
+                            <!-- Tabs -->
+                            <div style="display:flex; gap:32px; border-bottom: 1px solid var(--dash-border); margin-bottom: 24px; padding-bottom: 0;">
+                                <a href="#" style="font-size:14px; font-weight:700; color:var(--dash-primary); border-bottom: 2px solid var(--dash-primary); text-decoration:none; padding-bottom:12px; margin-bottom:-1px;">Overview</a>
+                                <a href="#" style="font-size:14px; font-weight:600; color:var(--dash-text-muted); text-decoration:none; padding-bottom:12px;">Impact Analytics</a>
+                                <a href="#" style="font-size:14px; font-weight:600; color:var(--dash-text-muted); text-decoration:none; padding-bottom:12px;">Reports</a>
+                                <a href="#" style="font-size:14px; font-weight:600; color:var(--dash-text-muted); text-decoration:none; padding-bottom:12px;">Certificates</a>
+                            </div>
+                            
+                            <!-- Controls: Date Range, Compare With, Location, Filters -->
+                            <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:24px;">
+                                <div style="display:flex; flex-direction:column; gap:6px; flex-grow:1.5;">
+                                    <span style="font-size:12px; color:var(--dash-text-muted); font-weight:600;">Date Range</span>
+                                    <div style="position:relative;">
+                                        <input type="text" class="form-control" value="May 1, 2024 - May 27, 2024" style="height:40px; font-size:13px; font-weight:500; border-radius:6px; background:#fff; padding-right:36px; width:100%;">
+                                        <i class="fa-regular fa-calendar" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8;"></i>
+                                    </div>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:6px; flex-grow:1;">
+                                    <span style="font-size:12px; color:var(--dash-text-muted); font-weight:600;">Compare With</span>
+                                    <select class="form-control" style="height:40px; font-size:13px; font-weight:500; border-radius:6px; background:#fff; width:100%;">
+                                        <option>Previous Period</option>
+                                    </select>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:6px; flex-grow:1;">
+                                    <span style="font-size:12px; color:var(--dash-text-muted); font-weight:600;">Location</span>
+                                    <select class="form-control" style="height:40px; font-size:13px; font-weight:500; border-radius:6px; background:#fff; width:100%;">
+                                        <option>All Locations</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" style="height:40px; font-size:13px; font-weight:600; background:#fff; border:1px solid var(--dash-border);"><i class="fa-solid fa-filter" style="margin-right:6px;"></i> Filters</button>
+                            </div>
+                            
+                            <!-- Thank You Banner -->
+                            <div style="background:#f0fdf4; border-radius:8px; padding:12px 16px; display:flex; align-items:center; gap:12px; color:#166534; font-size:14px; font-weight:600; margin-bottom:24px;">
+                                <div style="width:28px; height:28px; background:#dcfce7; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#15803d; font-size:14px;"><i class="fa-regular fa-heart"></i></div>
+                                Thank you for making a difference! Here's the impact of your generosity.
+                            </div>
+                            
+                            <!-- Metric Cards Row -->
+                            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:16px;">
+                                <div style="border:1px solid var(--dash-border); border-radius:8px; padding:16px;">
+                                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                                        <div style="width:40px; height:40px; border-radius:50%; background:#dcfce7; color:#166534; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;"><i class="fa-solid fa-bowl-food"></i></div>
+                                        <div>
+                                            <p style="margin:0; font-size:11px; color:var(--dash-text-muted); font-weight:600;">Total Food Donated</p>
+                                            <p style="margin:4px 0; font-size:20px; font-weight:800; color:var(--dash-text-main);" id="impact-total-food">0 kg</p>
+                                            <p style="margin:0; font-size:10px; color:#16a34a; font-weight:700;"><i class="fa-solid fa-arrow-up"></i> Active <span style="color:#94a3b8; font-weight:500;">contributor</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="border:1px solid var(--dash-border); border-radius:8px; padding:16px;">
+                                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                                        <div style="width:40px; height:40px; border-radius:50%; background:#ffedd5; color:#ea580c; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;"><i class="fa-solid fa-users"></i></div>
+                                        <div>
+                                            <p style="margin:0; font-size:11px; color:var(--dash-text-muted); font-weight:600;">People Fed</p>
+                                            <p style="margin:4px 0; font-size:20px; font-weight:800; color:var(--dash-text-main);" id="impact-people-fed">0</p>
+                                            <p style="margin:0; font-size:10px; color:#16a34a; font-weight:700;"><i class="fa-solid fa-arrow-up"></i> Active <span style="color:#94a3b8; font-weight:500;">impact</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="border:1px solid var(--dash-border); border-radius:8px; padding:16px;">
+                                    <div style="border:1px solid var(--dash-border); border-radius:8px; padding:16px;">
+                                        <div style="display:flex; gap:12px; align-items:flex-start;">
+                                            <div style="width:40px; height:40px; border-radius:50%; background:#e0f2fe; color:#0284c7; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;"><i class="fa-solid fa-cloud"></i></div>
+                                            <div>
+                                                <p style="margin:0; font-size:11px; color:var(--dash-text-muted); font-weight:600;">CO2 Emissions Saved</p>
+                                                <p style="margin:4px 0; font-size:20px; font-weight:800; color:var(--dash-text-main);" id="impact-co2-saved">0 kg</p>
+                                                <p style="margin:0; font-size:10px; color:#16a34a; font-weight:700;"><i class="fa-solid fa-arrow-up"></i> Calculated</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="border:1px solid var(--dash-border); border-radius:8px; padding:16px;">
+                                    <div style="display:flex; gap:12px; align-items:flex-start;">
+                                        <div style="width:40px; height:40px; border-radius:50%; background:#f3e8ff; color:#9333ea; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;"><i class="fa-solid fa-trash-can"></i></div>
+                                        <div>
+                                            <p style="margin:0; font-size:11px; color:var(--dash-text-muted); font-weight:600;">Food Waste Diverted</p>
+                                            <p style="margin:4px 0; font-size:20px; font-weight:800; color:var(--dash-text-main);" id="impact-waste-diverted">0 kg</p>
+                                            <p style="margin:0; font-size:10px; color:#16a34a; font-weight:700;"><i class="fa-solid fa-arrow-up"></i> Calculated</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charts Row -->
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
+                            
+                            <!-- Line Chart -->
+                            <div class="dash-card">
+                                <h4 style="margin:0 0 20px 0; font-size:14px; font-weight:700;">Food Donated Over Time (kg)</h4>
+                                <div style="position:relative; height:220px; width:100%;">
+                                    <canvas id="impactLineChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <!-- Donut Chart -->
+                            <div class="dash-card">
+                                <h4 style="margin:0 0 24px 0; font-size:14px; font-weight:700;">Food Donated by Category</h4>
+                                <div style="display:flex; align-items:center; gap:32px; height:220px;">
+                                    
+                                    <!-- CSS Donut Chart -->
+                                    <div style="position:relative; width:160px; height:160px; border-radius:50%; background: conic-gradient(
+                                        #16a34a 0% 45%,     /* Cooked Food */
+                                        #f97316 45% 70%,    /* Fruits */
+                                        #8b5cf6 70% 85%,    /* Bakery */
+                                        #3b82f6 85% 95%,    /* Snacks */
+                                        #64748b 95% 100%    /* Others */
+                                    ); display:flex; align-items:center; justify-content:center;" id="category-donut-gradient">
+                                        <!-- Donut Hole -->
+                                        <div style="width:100px; height:100px; background:#fff; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                                            <p style="margin:0; font-size:16px; font-weight:800; color:var(--dash-text-main);" id="category-donut-total">0 kg</p>
+                                            <p style="margin:0; font-size:11px; color:var(--dash-text-muted); font-weight:600;">Total</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Legend -->
+                                    <div style="display:flex; flex-direction:column; gap:16px; flex-grow:1;">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                                            <div style="display:flex; align-items:center; gap:8px; color:var(--dash-text-main); font-weight:500;"><div style="width:8px; height:8px; border-radius:50%; background:#16a34a;"></div> Cooked Food</div>
+                                            <span style="color:var(--dash-text-muted);" id="cat-cooked-food">0% (0 kg)</span>
+                                        </div>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                                            <div style="display:flex; align-items:center; gap:8px; color:var(--dash-text-main); font-weight:500;"><div style="width:8px; height:8px; border-radius:50%; background:#f97316;"></div> Fruits</div>
+                                            <span style="color:var(--dash-text-muted);" id="cat-fruits">0% (0 kg)</span>
+                                        </div>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                                            <div style="display:flex; align-items:center; gap:8px; color:var(--dash-text-main); font-weight:500;"><div style="width:8px; height:8px; border-radius:50%; background:#8b5cf6;"></div> Bakery</div>
+                                            <span style="color:var(--dash-text-muted);" id="cat-bakery">0% (0 kg)</span>
+                                        </div>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                                            <div style="display:flex; align-items:center; gap:8px; color:var(--dash-text-main); font-weight:500;"><div style="width:8px; height:8px; border-radius:50%; background:#3b82f6;"></div> Snacks</div>
+                                            <span style="color:var(--dash-text-muted);" id="cat-snacks">0% (0 kg)</span>
+                                        </div>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                                            <div style="display:flex; align-items:center; gap:8px; color:var(--dash-text-main); font-weight:500;"><div style="width:8px; height:8px; border-radius:50%; background:#64748b;"></div> Others</div>
+                                            <span style="color:var(--dash-text-muted);" id="cat-others">0% (0 kg)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                        <!-- Bottom Row: Table & Highlights -->
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
+                            
+                            <!-- Impact by NGO Table -->
+                            <div class="dash-card" style="padding:0;">
+                                <div style="padding:24px; border-bottom:1px solid var(--dash-border);">
+                                    <h4 style="margin:0; font-size:14px; font-weight:700;">Impact by NGO / Receiver</h4>
+                                </div>
+                                <table style="width:100%; text-align:left; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid var(--dash-border);">
+                                            <th style="padding:12px 24px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">NGO / Receiver</th>
+                                            <th style="padding:12px 24px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase; text-align:center;">Food Donated (kg)</th>
+                                            <th style="padding:12px 24px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase; text-align:center;">People Fed</th>
+                                            <th style="padding:12px 24px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase; text-align:center;">Donations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="impact-ngo-table-body">
+<tr><td colspan="4" style="padding:16px 24px; font-size:13px; text-align:center; color:var(--dash-text-muted);">No data available</td></tr>
+</tbody>
+                                </table>
+                                <div style="padding:16px 24px; border-top:1px solid var(--dash-border); display:flex; justify-content:space-between; align-items:center;">
+                                    <a href="#" style="font-size:13px; font-weight:700; color:var(--dash-primary); text-decoration:none;">View All Receivers</a>
+                                    <i class="fa-solid fa-arrow-right" style="color:var(--dash-primary); font-size:12px;"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Impact Highlights -->
+                            <div class="dash-card">
+                                <h4 style="margin:0 0 24px 0; font-size:14px; font-weight:700;">Impact Highlights</h4>
+<div style="display:flex; flex-direction:column; gap:20px;" id="impact-highlights-list"><p style="font-size:12px; color:#666;">No data available.</p></div>
+</div>
+
+                            
+                        </div>
+                        
+                        <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dash-text-muted); margin-top:8px;">
+                            <i class="fa-solid fa-circle-info"></i> Impact calculations are based on standard metrics and may vary.
+                        </div>
+
+                    </div>
+                    
+                    <!-- RIGHT COLUMN: Sidebar Widgets -->
+                    <div style="display:flex; flex-direction:column; gap:24px;">
+                        
+                        <!-- Your Overall Impact Widget -->
+                        <div class="dash-card">
+                            <h4 style="margin:0 0 4px 0; font-size:15px; font-weight:700;">Your Overall Impact</h4>
+                            <p style="margin:0 0 24px 0; font-size:12px; color:var(--dash-text-muted);">(All time)</p>
+                            
+                            <div style="display:flex; flex-direction:column; gap:20px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; gap:12px; align-items:center;">
+                                        <div style="width:32px; height:32px; border-radius:50%; background:#f0fdf4; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:14px;"><i class="fa-solid fa-leaf"></i></div>
+                                        <span style="font-size:13px; font-weight:600; color:var(--dash-text-main);">Total Food Donated</span>
+                                    </div>
+                                    <span id="impact-sidebar-food" style="font-size:14px; font-weight:800; color:var(--dash-text-main);">0 kg</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; gap:12px; align-items:center;">
+                                        <div style="width:32px; height:32px; border-radius:50%; background:#f0fdf4; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:14px;"><i class="fa-solid fa-users"></i></div>
+                                        <span style="font-size:13px; font-weight:600; color:var(--dash-text-main);">People Fed</span>
+                                    </div>
+                                    <span id="impact-sidebar-people" style="font-size:14px; font-weight:800; color:var(--dash-text-main);">0</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; gap:12px; align-items:center;">
+                                        <div style="width:32px; height:32px; border-radius:50%; background:#f0fdf4; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:14px;"><i class="fa-solid fa-cloud"></i></div>
+                                        <span style="font-size:13px; font-weight:600; color:var(--dash-text-main);">CO2 Emissions Saved</span>
+                                    </div>
+                                    <span style="font-size:14px; font-weight:800; color:var(--dash-text-main);">0 kg</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; gap:12px; align-items:center;">
+                                        <div style="width:32px; height:32px; border-radius:50%; background:#f0fdf4; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:14px;"><i class="fa-solid fa-trash-can"></i></div>
+                                        <span style="font-size:13px; font-weight:600; color:var(--dash-text-main);">Food Waste Diverted</span>
+                                    </div>
+                                    <span style="font-size:14px; font-weight:800; color:var(--dash-text-main);">0 kg</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <div style="display:flex; gap:12px; align-items:center;">
+                                        <div style="width:32px; height:32px; border-radius:50%; background:#f0fdf4; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:14px;"><i class="fa-solid fa-box"></i></div>
+                                        <span style="font-size:13px; font-weight:600; color:var(--dash-text-main);">Total Donations</span>
+                                    </div>
+                                    <span id="impact-sidebar-donations" style="font-size:14px; font-weight:800; color:var(--dash-text-main);">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Download Reports Widget -->
+                        <div class="dash-card">
+                            <h4 style="margin:0 0 16px 0; font-size:15px; font-weight:700;">Download Reports</h4>
+                            <div style="display:flex; flex-direction:column; gap:12px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--dash-border); cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <i class="fa-regular fa-file-pdf" style="color:var(--dash-text-muted); font-size:16px;"></i>
+                                        <span style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Impact Summary (PDF)</span>
+                                    </div>
+                                    <i class="fa-solid fa-download" style="color:var(--dash-text-muted); font-size:12px;"></i>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--dash-border); cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <i class="fa-regular fa-file-excel" style="color:var(--dash-text-muted); font-size:16px;"></i>
+                                        <span style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Food Donation Report (Excel)</span>
+                                    </div>
+                                    <i class="fa-solid fa-download" style="color:var(--dash-text-muted); font-size:12px;"></i>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--dash-border); cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <i class="fa-regular fa-file-pdf" style="color:var(--dash-text-muted); font-size:16px;"></i>
+                                        <span style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Environmental Impact Report (PDF)</span>
+                                    </div>
+                                    <i class="fa-solid fa-download" style="color:var(--dash-text-muted); font-size:12px;"></i>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; cursor:pointer;">
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <i class="fa-regular fa-file-pdf" style="color:var(--dash-text-muted); font-size:16px;"></i>
+                                        <span style="font-size:13px; color:var(--dash-text-main); font-weight:500;">NGO Impact Report (PDF)</span>
+                                    </div>
+                                    <i class="fa-solid fa-download" style="color:var(--dash-text-muted); font-size:12px;"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Certificates & Badges -->
+                        <div class="dash-card">
+                            <h4 style="margin:0 0 24px 0; font-size:15px; font-weight:700;">Certificates & Badges</h4>
+                            <div style="display:flex; flex-direction:column; gap:20px;">
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:48px; height:48px; border-radius:50%; background:#dcfce7; color:#15803d; display:flex; align-items:center; justify-content:center; font-size:20px;"><i class="fa-solid fa-award"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:14px; font-weight:700; color:var(--dash-text-main);">Food Champion</p>
+                                        <p style="margin:2px 0 0 0; font-size:12px; color:var(--dash-text-muted);">Donated 1,000+ kg of food</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:48px; height:48px; border-radius:50%; background:#eff6ff; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:20px;"><i class="fa-solid fa-medal"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:14px; font-weight:700; color:var(--dash-text-main);">Environment Saver</p>
+                                        <p style="margin:2px 0 0 0; font-size:12px; color:var(--dash-text-muted);">Saved 100+ kg of CO2</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:16px; align-items:center;">
+                                    <div style="width:48px; height:48px; border-radius:50%; background:#ffedd5; color:#c2410c; display:flex; align-items:center; justify-content:center; font-size:20px;"><i class="fa-solid fa-ribbon"></i></div>
+                                    <div>
+                                        <p style="margin:0; font-size:14px; font-weight:700; color:var(--dash-text-main);">Community Builder</p>
+                                        <p style="margin:2px 0 0 0; font-size:12px; color:var(--dash-text-muted);">Supported 10+ NGOs</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:24px; text-align:center;">
+                                <a href="#" style="font-size:13px; font-weight:700; color:var(--dash-primary); text-decoration:none;">View All Certificates <i class="fa-solid fa-arrow-right" style="margin-left:4px;"></i></a>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div> <!-- End Impact & Reports View -->
+
+            <!-- Help & Support View -->
+            <div id="help-support-view" style="display: none;">
+                <div class="dashboard-grid">
+                    <div class="dash-card">
+                        <div class="card-header" style="margin-bottom:24px;">
+                            <div>
+                                <h3 class="card-title">Frequently Asked Questions</h3>
+                                <p class="card-subtitle">Find quick answers to common questions.</p>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex; flex-direction:column; gap:16px;">
+                            <div style="border:1px solid var(--dash-border); border-radius:var(--dash-radius); padding:16px;">
+                                <h4 style="font-size:15px; font-weight:600; margin-bottom:8px;">What types of food can I donate?</h4>
+                                <p style="font-size:14px; color:var(--dash-text-muted); line-height:1.5;">We accept freshly cooked food (prepared within the last 4 hours) and non-perishable raw ingredients. We do not accept expired or spoiled items.</p>
+                            </div>
+                            <div style="border:1px solid var(--dash-border); border-radius:var(--dash-radius); padding:16px;">
+                                <h4 style="font-size:15px; font-weight:600; margin-bottom:8px;">How long does it take for a pickup?</h4>
+                                <p style="font-size:14px; color:var(--dash-text-muted); line-height:1.5;">Once an NGO accepts your donation, a volunteer is assigned immediately. Pickups typically happen within 1-2 hours of acceptance.</p>
+                            </div>
+                            <div style="border:1px solid var(--dash-border); border-radius:var(--dash-radius); padding:16px;">
+                                <h4 style="font-size:15px; font-weight:600; margin-bottom:8px;">Can I cancel a donation?</h4>
+                                <p style="font-size:14px; color:var(--dash-text-muted); line-height:1.5;">Yes, you can cancel a donation before a volunteer is assigned to pick it up. Go to 'My Donations' and click 'Cancel'.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="dash-card">
+                        <div class="card-header" style="margin-bottom:24px;">
+                            <div>
+                                <h3 class="card-title">Contact Support</h3>
+                                <p class="card-subtitle">Need more help? Send us a message.</p>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label>Subject</label>
+                            <input type="text" class="form-control" placeholder="What is this regarding?">
+                        </div>
+                        <div class="form-group" style="margin-bottom:24px;">
+                            <label>Message</label>
+                            <textarea class="form-control" rows="6" placeholder="Describe your issue..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" style="width:100%; padding:12px;">Send Message</button>
+                    </div>
+                </div>
+            </div> <!-- End Help & Support View -->
+
+            <!-- Settings View -->
+            <div id="settings-view" style="display: none;">
+                <div class="dashboard-grid">
+                    <div class="dash-card">
+                        <div class="card-header" style="margin-bottom:24px;">
+                            <div>
+                                <h3 class="card-title">Profile Settings</h3>
+                                <p class="card-subtitle">Update your personal and business details.</p>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex; align-items:center; gap:24px; margin-bottom:32px;">
+                            <div style="width:80px; height:80px; background:#e2e8f0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:32px; color:#94a3b8;">
+                                <i class="fa-solid fa-leaf"></i>
+                            </div>
+                            <div>
+                                <button class="btn btn-secondary" style="border:1px solid var(--dash-border); margin-bottom:8px;">Upload Photo</button>
+                                <p style="font-size:12px; color:var(--dash-text-muted);">JPG, GIF or PNG. Max size of 800K</p>
+                            </div>
+                        </div>
+                        
+                        <div class="fields-grid" style="margin-bottom:24px;">
+                            <div class="form-group">
+                                <label>Organization Name</label>
+                                <input type="text" class="form-control" id="donor-setting-org-name" placeholder="Organization / Business Name">
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Name</label>
+                                <input type="text" class="form-control" id="input-contact-name" placeholder="Contact Person Name">
+                            </div>
+                        </div>
+                        
+                        <div class="fields-grid" style="margin-bottom:32px;">
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input type="email" class="form-control" id="donor-setting-email" placeholder="contact@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input type="text" class="form-control" id="input-contact-phone" placeholder="+91 98765 43210">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:32px;">
+                            <label>Default Pickup Address</label>
+                            <input type="text" class="form-control" id="donor-setting-address" placeholder="Enter default pickup address">
+                        </div>
+
+                        
+                        <button class="btn btn-primary" style="padding:10px 24px;">Save Changes</button>
+                    </div>
+                    
+                    <div style="display:flex; flex-direction:column; gap:24px;">
+                        <div class="dash-card">
+                            <div class="card-header" style="margin-bottom:24px;">
+                                <div>
+                                    <h3 class="card-title">Security</h3>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom:16px;">
+                                <label>Current Password</label>
+                                <input type="password" class="form-control" placeholder="••••••••">
+                            </div>
+                            <div class="form-group" style="margin-bottom:16px;">
+                                <label>New Password</label>
+                                <input type="password" class="form-control" placeholder="••••••••">
+                            </div>
+                            <button class="btn btn-secondary" style="border:1px solid var(--dash-border);">Update Password</button>
+                        </div>
+                        
+                        <div class="dash-card">
+                            <div class="card-header" style="margin-bottom:24px;">
+                                <div>
+                                    <h3 class="card-title">Notifications</h3>
+                                </div>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:12px; margin-bottom:16px; cursor:pointer;">
+                                <input type="checkbox" checked>
+                                <span style="font-size:14px; color:var(--dash-text-main);">Email notifications for donation updates</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:12px; margin-bottom:16px; cursor:pointer;">
+                                <input type="checkbox" checked>
+                                <span style="font-size:14px; color:var(--dash-text-main);">SMS alerts when volunteer arrives</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
+                                <input type="checkbox">
+                                <span style="font-size:14px; color:var(--dash-text-main);">Marketing and newsletter emails</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- End Settings View -->
+            
+        </main>
+    </div>
+
+    <!-- Chart Setup Scripts -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Setup Donut Chart
+            const ctxDonut = document.getElementById('donutChart').getContext('2d');
+            
+            // Create a vibrant gradient for the donut chart
+            const grad1 = ctxDonut.createLinearGradient(0, 0, 0, 200);
+            grad1.addColorStop(0, '#10b981'); // Emerald
+            grad1.addColorStop(1, '#059669');
+            
+            const grad2 = ctxDonut.createLinearGradient(0, 0, 0, 200);
+            grad2.addColorStop(0, '#f59e0b'); // Amber
+            grad2.addColorStop(1, '#d97706');
+            
+            const grad3 = ctxDonut.createLinearGradient(0, 0, 0, 200);
+            grad3.addColorStop(0, '#ef4444'); // Red
+            grad3.addColorStop(1, '#dc2626');
+
+            window.donorDonutChart = new Chart(ctxDonut, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'In Progress', 'Cancelled'],
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0, 0],
+                        backgroundColor: [grad1, grad2, grad3],
+                        hoverOffset: 4,
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        cutout: '75%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    }
+                }
+            });
+
+            // Setup Bar Chart
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            
+            // Create vibrant gradients for each bar
+            const barColors = [
+                '#3b82f6', // Blue
+                '#ec4899', // Pink
+                '#8b5cf6', // Purple
+                '#14b8a6', // Teal
+                '#f59e0b', // Amber
+                '#22c55e', // Green
+                '#ef4444'  // Red
+            ];
+
+            window.donorBarChart = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Food Quantity',
+                        data: [0, 0, 0, 0, 0, 0],
+                        backgroundColor: barColors,
+                        borderRadius: 6,
+                        barThickness: 16
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { stepSize: 25, color: '#94a3b8', font: {size: 10} },
+                            border: { display: false },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: {
+                            ticks: { color: '#94a3b8', font: {size: 10} },
+                            border: { display: false },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Setup Impact Line Chart
+            const ctxImpactLine = document.getElementById('impactLineChart');
+            if (ctxImpactLine) {
+                window.donorImpactLineChart = new Chart(ctxImpactLine.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                        datasets: [{
+                            label: 'Food Donated (kg)',
+                            data: [0, 0, 0, 0],
+                            borderColor: '#16a34a',
+                            backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#16a34a'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(val) { return val + ' kg'; },
+                                    color: '#94a3b8',
+                                    font: { size: 10 }
+                                },
+                                grid: { color: '#f1f5f9' }
+                            },
+                            x: {
+                                ticks: { color: '#94a3b8', font: { size: 10 } },
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Setup Leaflet Interactive Map
+            const initialLat = 12.9784; // Fallback: Bangalore
+            const initialLng = 77.6408;
+
+            const map = L.map('pickupMap').setView([initialLat, initialLng], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Initial immediate load of nearby registered NGOs
+            renderRegisteredNgos(initialLat, initialLng);
+
+            function renderRegisteredNgos(centerLat, centerLng) {
+                const centerLatLng = L.latLng(centerLat, centerLng);
+                const nearbyListEl = document.getElementById('nearby-ngos-list');
+                if (nearbyListEl) nearbyListEl.innerHTML = '';
+
+                fetch(`${API_BASE}/ngos`)
+                    .then(res => res.json())
+                    .then(data => {
+                        let nearbyCount = 0;
+                        if (data.success && data.ngos && data.ngos.length > 0) {
+                            data.ngos.forEach((ngo, idx) => {
+                                const ngoLat = ngo.lat || ngo.location?.latitude || (centerLat + ((idx + 1) * 0.005 * (idx % 2 === 0 ? 1 : -1)));
+                                const ngoLng = ngo.lng || ngo.location?.longitude || (centerLng + ((idx + 1) * 0.006 * (idx % 3 === 0 ? -1 : 1)));
+                                const ngoAddress = ngo.address || ngo.location?.address || 'Registered Base Address';
+                                const ngoLatLng = L.latLng(ngoLat, ngoLng);
+                                
+                                const distMeters = centerLatLng.distanceTo(ngoLatLng);
+                                if (distMeters <= 25000) {
+                                    nearbyCount++;
+                                    const distKm = (distMeters / 1000).toFixed(1);
+                                    let tierBadge = '';
+                                    let tierPill = '';
+                                    if (distMeters <= 15000) {
+                                        tierBadge = `<span style="display:inline-block; margin-top:3px; padding:2px 6px; font-size:10px; font-weight:700; background:#e6f4ea; color:#137333; border-radius:4px;">⚡ Tier 1: Priority (15km)</span>`;
+                                        tierPill = `<span style="font-size:10px; font-weight:700; background:#e6f4ea; color:#137333; padding:2px 6px; border-radius:4px;">⚡ Tier 1 Priority</span>`;
+                                    } else {
+                                        tierBadge = `<span style="display:inline-block; margin-top:3px; padding:2px 6px; font-size:10px; font-weight:700; background:#fef7e0; color:#b06000; border-radius:4px;">⏱️ Tier 2: Cascade (25km)</span>`;
+                                        tierPill = `<span style="font-size:10px; font-weight:700; background:#fef7e0; color:#b06000; padding:2px 6px; border-radius:4px;">⏱️ Tier 2 Cascade</span>`;
+                                    }
+
+                                    // 1. Add Leaflet Map Marker with NGO Building Icon
+                                    L.marker([ngoLat, ngoLng], { icon: MapIcons.createNgoMarker(ngo.name) }).addTo(map)
+                                     .bindPopup(`
+                                        <div style="padding:4px; font-family:'Plus Jakarta Sans', sans-serif;">
+                                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                                                <i class="fa-solid fa-building-ngo" style="color:#1d4ed8;"></i>
+                                                <strong style="font-size:13px; color:#1e293b;">${ngo.name}</strong>
+                                            </div>
+                                            <div style="font-size:11px; color:#16a34a; font-weight:600;">✓ NGO Permanent Location</div>
+                                            <div style="font-size:11px; color:#64748b; margin-top:2px;">📍 ${ngoAddress} (${distKm} km away)</div>
+                                            ${tierBadge}
+                                            ${ngo.phone ? `<div style="font-size:11px; color:#3b82f6; margin-top:4px;">📞 ${ngo.phone}</div>` : ''}
+                                        </div>
+                                     `);
+
+                                    // 2. Add to Dashboard Nearby NGOs List
+                                    if (nearbyListEl) {
+                                        const card = document.createElement('div');
+                                        card.style.cssText = 'display:flex; align-items:center; gap:14px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; transition:all 0.2s;';
+                                        card.onmouseover = function() { this.style.background = '#f1f5f9'; this.style.borderColor = '#cbd5e1'; };
+                                        card.onmouseout = function() { this.style.background = '#f8fafc'; this.style.borderColor = '#e2e8f0'; };
+
+                                        card.innerHTML = `
+                                            <div style="width:44px; height:44px; border-radius:12px; background:#dbeafe; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;">
+                                                <i class="fa-solid fa-building-ngo"></i>
+                                            </div>
+                                            <div style="flex:1;">
+                                                <div style="display:flex; align-items:center; gap:8px;">
+                                                    <strong style="font-size:14px; color:#1e293b;">${ngo.name}</strong>
+                                                    <span style="font-size:10px; font-weight:700; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px;">✓ Verified</span>
+                                                </div>
+                                                <div style="font-size:12px; color:#64748b; margin-top:3px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                                    <span>📍 <strong>${ngoAddress}</strong> (${distKm} km)</span>
+                                                    ${tierPill}
+                                                    ${ngo.phone ? `<span style="color:#2563eb; font-weight:500;">📞 ${ngo.phone}</span>` : ''}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                ${ngo.phone ? `<a href="tel:${ngo.phone}" class="btn btn-secondary" style="padding:6px 12px; font-size:12px; border:1px solid #2563eb; color:#2563eb; background:#fff; text-decoration:none; border-radius:6px; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-phone" style="font-size:11px;"></i> Call</a>` : ''}
+                                            </div>
+                                        `;
+                                        nearbyListEl.appendChild(card);
+                                    }
+                                }
+                            });
+                        }
+
+                        if (nearbyCount === 0 && nearbyListEl) {
+                            nearbyListEl.innerHTML = '<p style="text-align:center; color:#94a3b8; font-size:13px; padding:20px;">No registered NGOs found within 25 km radius.</p>';
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Error loading registered NGOs:", err);
+                        if (nearbyListEl) nearbyListEl.innerHTML = '<p style="text-align:center; color:#ef4444; font-size:13px; padding:20px;">Unable to load nearby NGOs.</p>';
+                    });
+            }
+
+            function addConcentricCircles(lat, lng) {
+                // Fetch active accepted donations to render volunteer route
+                fetchActiveAcceptedRoute(lat, lng);
+            }
+
+            function fetchActiveAcceptedRoute(donorLat, donorLng) {
+                fetch(`${API_BASE}/donations/all`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success && data.donations) {
+                            const accepted = data.donations.find(d => d.status === 'Accepted' || d.status === 'Picked Up' || d.status === 'In Transit');
+                            if (accepted) {
+                                const pLat = accepted.pickup_location?.latitude || accepted.pickup_details?.lat || donorLat;
+                                const pLng = accepted.pickup_location?.longitude || accepted.pickup_details?.lng || donorLng;
+                                const pAddress = accepted.pickup_location?.address || accepted.pickup_details?.address || 'Pickup Point';
+
+                                const ngoInfo = accepted.assigned_ngo || {};
+                                const ngoLat = ngoInfo.lat || accepted.assigned_ngo_lat || (pLat + 0.03);
+                                const ngoLng = ngoInfo.lng || accepted.assigned_ngo_lng || (pLng + 0.03);
+                                const ngoName = ngoInfo.name || accepted.assigned_ngo_name || 'ABC Foundation';
+
+                                RouteMap.drawRoute(map, ngoLat, ngoLng, pLat, pLng, ngoName, pAddress, 'donorAcceptedRouteCardContainer');
+                            }
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            function drawDonorVolunteerRoute(donorLat, donorLng, ngoLat, ngoLng, ngoName = 'Accepted NGO') {
+                if (!map || !donorLat || !donorLng || !ngoLat || !ngoLng) return;
+
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${donorLng},${donorLat};${ngoLng},${ngoLat}?overview=full&geometries=geojson`;
+
+                fetch(osrmUrl)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                            const route = data.routes[0];
+                            const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                            const distanceKm = (route.distance / 1000).toFixed(1);
+                            const durationMins = Math.round(route.duration / 60);
+
+                            const routeLine = L.polyline(coords, {
+                                color: '#2563eb',
+                                weight: 5,
+                                opacity: 0.85,
+                                dashArray: '8, 8'
+                            }).addTo(map);
+
+                            routeLine.bindTooltip(`🛣️ Volunteer Pickup Route to ${ngoName} • ${distanceKm} km (~${durationMins} mins)`, { permanent: true, sticky: true });
+                            map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+                        }
+                    })
+                    .catch(err => console.warn("Donor route calculation error:", err));
+            }
+
+            function setMapToPosition(position) {
+                const userLat = position.coords.latitude;
+                const userLng = position.coords.longitude;
+                
+                map.setView([userLat, userLng], 10);
+
+                // Place blue live location marker
+                L.marker([userLat, userLng], {icon: liveIcon}).addTo(map)
+                 .bindPopup('<b>Your Live Location</b>')
+                 .openPopup();
+                 
+                // Add 15km and 25km concentric circles
+                addConcentricCircles(userLat, userLng);
+                 
+                // Display registered NGOs within 25 km with Tier badges
+                renderRegisteredNgos(userLat, userLng);
+            }
+
+            function handleLocationError(error) {
+                console.warn("High-accuracy location failed/denied, trying standard geolocation...", error);
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => setMapToPosition(position),
+                        (errFallback) => {
+                            console.warn("Fallback geolocation failed:", errFallback);
+                            map.setView([initialLat, initialLng], 10);
+                            L.marker([initialLat, initialLng], {icon: liveIcon}).addTo(map)
+                             .bindPopup('<b>Your Location</b>')
+                             .openPopup();
+                            addConcentricCircles(initialLat, initialLng);
+                            renderRegisteredNgos(initialLat, initialLng);
+                        },
+                        { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+                    );
+                } else {
+                    map.setView([initialLat, initialLng], 10);
+                    L.marker([initialLat, initialLng], {icon: liveIcon}).addTo(map)
+                     .bindPopup('<b>Your Location</b>')
+                     .openPopup();
+                    addConcentricCircles(initialLat, initialLng);
+                    renderRegisteredNgos(initialLat, initialLng);
+                }
+            }
+
+            // Request high precision GPS location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    setMapToPosition,
+                    handleLocationError,
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+            } else {
+                handleLocationError(null);
+            }
+            
+            // Invalidate size to ensure it renders correctly in flex/grid layouts after loading
+            setTimeout(() => { map.invalidateSize(); }, 100);
+
+            // ==========================================
+            // View Toggling Logic
+            // ==========================================
+            const views = {
+                'tab-dashboard': { view: document.getElementById('dashboard-view'), title: 'Dashboard', sub: 'Track your donations, impact and community reach.' },
+                'tab-create-donation': { view: document.getElementById('create-donation-view'), title: 'Create New Donation', sub: 'Share food. Spread hope.' },
+                'tab-my-donations': { view: document.getElementById('my-donations-view'), title: 'My Donations', sub: 'Track and manage your past and active donations.' },
+                'tab-impact-reports': { view: document.getElementById('impact-reports-view'), title: 'Impact & Reports', sub: 'See the difference you\'re making in the community.' },
+                'tab-help-support': { view: document.getElementById('help-support-view'), title: 'Help & Support', sub: 'Find answers and get in touch with our team.' },
+                'tab-settings': { view: document.getElementById('settings-view'), title: 'Settings', sub: 'Manage your profile, preferences and security.' }
+            };
+
+            const topbarTitleH1 = document.querySelector('.topbar-title h1');
+            const topbarTitleP = document.querySelector('.topbar-title p');
+
+            Object.keys(views).forEach(tabId => {
+                const tabEl = document.getElementById(tabId);
+                if(tabEl) {
+                    tabEl.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        
+                        // Update active state in sidebar
+                        document.querySelectorAll('.sidebar .menu-item').forEach(el => el.classList.remove('active'));
+                        this.classList.add('active');
+
+                        // Update topbar text
+                        topbarTitleH1.textContent = views[tabId].title;
+                        topbarTitleP.textContent = views[tabId].sub;
+
+                        // Hide all views
+                        Object.values(views).forEach(v => {
+                            if(v.view) v.view.style.display = 'none';
+                        });
+
+                        // Show target view
+                        if(views[tabId].view) {
+                            views[tabId].view.style.display = 'block';
+                        }
+
+                        // Trigger map resize if Dashboard is selected
+                        if(tabId === 'tab-dashboard' && typeof map !== 'undefined') {
+                            setTimeout(() => { map.invalidateSize(); }, 100);
+                        }
+                    });
+                }
+            });
+            
+        });
+    </script>
+
+    <!-- DONATION DETAIL CARD SUMMARY MODAL -->
+    <style>
+        .donation-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        .donation-summary-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 650px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+
+        .modal-card-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #dcfce7;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .modal-close-btn {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            color: #94a3b8;
+            cursor: pointer;
+            line-height: 1;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .modal-close-btn:hover {
+            color: #1e293b;
+            background: #e2e8f0;
+        }
+
+        .modal-card-body {
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .modal-stat-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 14px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .modal-section-title {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-items-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .modal-item-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
+        .modal-item-img {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #f1f5f9;
+            flex-shrink: 0;
+        }
+
+        .modal-info-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 13px;
+        }
+
+        .info-row {
+            display: flex;
+            gap: 8px;
+            color: #334155;
+        }
+
+        .info-key {
+            font-weight: 600;
+            color: #64748b;
+            min-width: 140px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .info-val {
+            font-weight: 600;
+            color: #0f172a;
+            flex-grow: 1;
+        }
+
+        .modal-card-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes modalSlideUp {
+            from { transform: translateY(12px) scale(0.98); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+    </style>
+
+    <div id="donation-summary-modal" class="donation-modal-overlay" style="display: none;">
+        <div class="donation-summary-card">
+            <!-- Modal Header -->
+            <div class="modal-card-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="modal-card-icon">
+                        <i class="fa-solid fa-box-open"></i>
+                    </div>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h3 id="modal-donation-id" style="margin:0; font-size:18px; font-weight:800; color:#1e293b;">Donation Details</h3>
+                            <span id="modal-donation-status-badge"></span>
+                        </div>
+                        <p id="modal-donation-date" style="margin: 2px 0 0 0; font-size:12px; color:#64748b;"></p>
+                    </div>
+                </div>
+                <button id="close-donation-modal-btn" class="modal-close-btn">&times;</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-card-body">
+                
+                <!-- Quick Stats Row -->
+                <div class="modal-stats-grid">
+                    <div class="modal-stat-box">
+                        <span class="stat-label">Total Quantity</span>
+                        <span id="modal-stat-qty" class="stat-value">0 kg</span>
+                    </div>
+                    <div class="modal-stat-box">
+                        <span class="stat-label">Meals Fed</span>
+                        <span id="modal-stat-meals" class="stat-value">0</span>
+                    </div>
+                    <div class="modal-stat-box">
+                        <span class="stat-label">CO2 Saved</span>
+                        <span id="modal-stat-co2" class="stat-value">0 kg</span>
+                    </div>
+                    <div class="modal-stat-box">
+                        <span class="stat-label">Radius Tier</span>
+                        <span id="modal-stat-tier" class="stat-value">Tier 1</span>
+                    </div>
+                </div>
+
+                <!-- Food Items List Section -->
+                <div class="modal-section">
+                    <h4 class="modal-section-title"><i class="fa-solid fa-utensils" style="color:#10b981;"></i> Donated Food Items</h4>
+                    <div id="modal-food-items-list" class="modal-items-container">
+                    </div>
+                </div>
+
+                <!-- Pickup Details Section -->
+                <div class="modal-section">
+                    <h4 class="modal-section-title"><i class="fa-solid fa-location-dot" style="color:#2563eb;"></i> Pickup & Contact Details</h4>
+                    <div class="modal-info-card">
+                        <div class="info-row">
+                            <span class="info-key"><i class="fa-solid fa-map-pin"></i> Address:</span>
+                            <span id="modal-pickup-address" class="info-val">N/A</span>
+                        </div>
+                        <div class="info-row" style="margin-top: 8px;">
+                            <span class="info-key"><i class="fa-solid fa-user"></i> Contact:</span>
+                            <span id="modal-pickup-contact" class="info-val">N/A</span>
+                        </div>
+                        <div class="info-row" style="margin-top: 8px;">
+                            <span class="info-key"><i class="fa-solid fa-clock"></i> Schedule:</span>
+                            <span id="modal-pickup-time" class="info-val">Immediate</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NGO Reach & Cascade Section -->
+                <div class="modal-section">
+                    <h4 class="modal-section-title"><i class="fa-solid fa-building-ngo" style="color:#f59e0b;"></i> NGO Notification & Reach</h4>
+                    <div id="modal-cascade-container" class="modal-info-card">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-card-footer">
+                <button id="modal-cancel-donation-btn" class="btn btn-secondary" style="border: 1px solid #ef4444; background: #fff; color: #ef4444; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: none;"><i class="fa-solid fa-ban"></i> Cancel Donation</button>
+                <button id="print-donation-summary-btn" class="btn btn-secondary" style="border: 1px solid #cbd5e1; background: #fff; color: #475569; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer;"><i class="fa-solid fa-print"></i> Print Summary</button>
+                <button id="close-donation-modal-footer-btn" class="btn btn-primary" style="background: #10b981; border: none; color: #fff; padding: 8px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/map-components.js"></script>
+    <script src="js/donor.js"></script>
+</body>
+</html>

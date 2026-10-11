@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jivahar – Premium NGO Command Center</title>
+    <!-- Font Awesome 6.4.0 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Leaflet.js Interactive Map Engine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="dashboard.css">
+    
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --primary-green: #15803D;
+            --primary-dark: #166534;
+            --primary-light: #DCFCE7;
+            --accent-blue: #0284C7;
+            --accent-amber: #D97706;
+            --bg-canvas: #F8FAFC;
+            --border-color: #E2E8F0;
+            --text-dark: #0F172A;
+            --text-muted: #64748B;
+            --card-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.04);
+            --card-hover-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Animated Live Location Pulsing Ring Marker */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            50% { transform: scale(1.6); opacity: 0.2; }
+            100% { transform: scale(0.8); opacity: 0.8; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-canvas);
+            color: var(--text-dark);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- Sidebar Navigation --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #FFFFFF;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 200;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.02);
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 22px 22px;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+            cursor: pointer;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #15803D 0%, #166534 100%);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+            box-shadow: 0 6px 16px rgba(21, 128, 61, 0.28);
+        }
+
+        .logo-text h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--primary-green);
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+
+        .logo-text span {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            padding: 20px 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: #475569;
+            text-decoration: none;
+            font-size: 13.5px;
+            font-weight: 700;
+            border-radius: 12px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-menu a:hover {
+            background: #F1F5F9;
+            color: var(--text-dark);
+            transform: translateX(3px);
+        }
+
+        .sidebar-menu a.active {
+            background: linear-gradient(135deg, #15803D 0%, #166534 100%);
+            color: white;
+            box-shadow: 0 6px 18px rgba(21, 128, 61, 0.3);
+        }
+
+        .sidebar-menu a i {
+            font-size: 16px;
+            width: 22px;
+            text-align: center;
+        }
+
+        /* Sidebar Radar Live Callout Card */
+        .sidebar-callout {
+            background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+            border: 1px solid #BBF7D0;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            margin: 16px 0;
+            box-shadow: 0 4px 14px rgba(22, 101, 52, 0.06);
+        }
+
+        .sidebar-callout .icon-circle {
+            width: 44px;
+            height: 44px;
+            background: #FFFFFF;
+            color: var(--primary-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-size: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .sidebar-callout h4 {
+            font-size: 13px;
+            color: #166534;
+            margin: 0 0 4px;
+            font-weight: 800;
+        }
+
+        .sidebar-callout p {
+            font-size: 11px;
+            color: #15803D;
+            margin: 0 0 6px;
+            line-height: 1.4;
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            border-top: 1px solid var(--border-color);
+            padding-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sidebar-footer a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            color: #64748B;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+
+        .sidebar-footer a:hover {
+            background: #FEF2F2;
+            color: #DC2626;
+        }
+
+        /* --- Main Workspace Layout --- */
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-canvas);
+        }
+
+        /* Topbar Header */
+        .topbar {
+            height: 76px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .hamburger-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .hamburger-btn:hover {
+            background: #F1F5F9;
+            color: var(--text-dark);
+        }
+
+        .topbar-title h1 {
+            font-size: 22px;
+            margin: 0 0 2px;
+            font-weight: 800;
+            color: var(--text-dark);
+            letter-spacing: -0.4px;
+        }
+
+        .topbar-title p {
+            font-size: 12.5px;
+            margin: 0;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn-help {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 16px;
+            border: 1px solid var(--border-color);
+            background: #FFFFFF;
+            border-radius: 30px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+
+        .btn-help:hover {
+            background: #F8FAFC;
+            border-color: #CBD5E1;
+            transform: translateY(-1px);
+        }
+
+        .notification-wrapper {
+            position: relative;
+        }
+
+        .icon-btn-badge {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #F1F5F9;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #475569;
+            font-size: 17px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .icon-btn-badge:hover {
+            background: #E2E8F0;
+            color: var(--text-dark);
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #EF4444;
+            color: white;
+            font-size: 10px;
+            font-weight: 800;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: 52px;
+            right: 0;
+            width: 340px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 16px 36px -6px rgba(0,0,0,0.12);
+            display: none;
+            z-index: 1000;
+            padding: 16px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .notification-dropdown.active {
+            display: block;
+        }
+
+        .notification-dropdown h4 {
+            margin: 0 0 12px;
+            font-size: 13.5px;
+            font-weight: 800;
+            color: var(--text-dark);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .user-profile-pill {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 5px 16px 5px 5px;
+            border-radius: 40px;
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s;
+        }
+
+        .user-profile-pill:hover {
+            border-color: #CBD5E1;
+            background: #F8FAFC;
+        }
+
+        .user-avatar-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #15803D 0%, #166534 100%);
+            color: #FFFFFF;
+            font-weight: 800;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 8px rgba(21, 128, 61, 0.3);
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-info .name {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: var(--text-dark);
+            line-height: 1.1;
+        }
+
+        .user-info .role {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #15803D;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        /* Workspace Content Body */
+        .workspace-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 32px 48px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Metrics Grid (4 Stat Cards) */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            border-top: 3px solid #15803D;
+            border-radius: 16px;
+            padding: 20px 22px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--card-hover-shadow);
+        }
+
+        .metric-icon-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .icon-green { background: #DCFCE7; color: #15803D; }
+        .icon-yellow { background: #FEF9C3; color: #CA8A04; }
+        .icon-blue { background: #E0F2FE; color: #0284C7; }
+        .icon-purple { background: #F3E8FF; color: #9333EA; }
+
+        .metric-details .label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .metric-details .value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-dark);
+            line-height: 1;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+
+        .metric-details .subtext {
+            font-size: 11px;
+            color: #16A34A;
+            font-weight: 700;
+        }
+
+        /* Card Container Containers */
+        .card-container {
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.25s ease;
+        }
+
+        .card-container:hover {
+            box-shadow: var(--card-hover-shadow);
+        }
+
+        .card-header-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #F1F5F9;
+            padding-bottom: 14px;
+        }
+
+        .card-title-group h3 {
+            margin: 0 0 4px;
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--text-dark);
+            letter-spacing: -0.3px;
+        }
+
+        .card-title-group p {
+            margin: 0;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .link-view-all {
+            color: #15803D;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .link-view-all:hover {
+            color: #166534;
+            text-decoration: underline;
+        }
+
+        /* Middle Row Grid */
+        .middle-grid {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 24px;
+        }
+
+        /* Incoming Decision Cards */
+        .incoming-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 100%);
+            border: 1px solid #BBF7D0;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(22, 101, 52, 0.04);
+            transition: all 0.2s;
+        }
+
+        .incoming-card:hover {
+            border-color: #86EFAC;
+            box-shadow: 0 6px 16px rgba(22, 101, 52, 0.08);
+        }
+
+        .incoming-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .incoming-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #DCFCE7;
+            color: #15803D;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .incoming-info h4 {
+            margin: 0 0 4px;
+            font-size: 14.5px;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        .incoming-info p {
+            margin: 0 0 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .incoming-pills {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-decision-accept {
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #15803D 0%, #166534 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(21, 128, 61, 0.25);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-decision-accept:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(21, 128, 61, 0.35);
+        }
+
+        .btn-decision-reject {
+            padding: 10px 16px;
+            background: #FFFFFF;
+            color: #DC2626;
+            border: 1px solid #FECDD3;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-decision-reject:hover {
+            background: #FEF2F2;
+            border-color: #FDA4AF;
+        }
+
+        /* Available Donation Stream Items */
+        .donations-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .donation-item-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 18px;
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .donation-item-card:hover {
+            border-color: #CBD5E1;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+            transform: translateY(-1px);
+        }
+
+        .donation-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .donation-img {
+            width: 72px;
+            height: 72px;
+            border-radius: 12px;
+            object-fit: cover;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .donation-meta h4 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        .donation-meta p {
+            margin: 0 0 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .donation-location {
+            font-size: 12px;
+            color: #475569;
+            font-weight: 600;
+        }
+
+        .donation-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .donation-qty {
+            font-size: 18px;
+            font-weight: 800;
+            color: #15803D;
+        }
+
+        .donation-pills {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tag-pill {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .tag-time { background: #FEF3C7; color: #B45309; }
+        .tag-dist { background: #DCFCE7; color: #166534; }
+
+        .btn-request-pickup {
+            padding: 8px 16px;
+            background: #15803D;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-request-pickup:hover {
+            background: #166534;
+        }
+
+        /* Map Styling */
+        #ngoMap {
+            height: 380px;
+            width: 100%;
+            border-radius: 14px;
+            z-index: 1;
+            border: 1px solid var(--border-color);
+        }
+
+        #ngoMapDonations {
+            height: 480px;
+            width: 100%;
+            border-radius: 14px;
+            z-index: 1;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Data Tables */
+        .styled-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .styled-table th {
+            text-align: left;
+            padding: 12px 14px;
+            background: #F8FAFC;
+            color: var(--text-muted);
+            font-weight: 700;
+            border-bottom: 2px solid var(--border-color);
+            font-size: 11.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .styled-table td {
+            padding: 14px;
+            border-bottom: 1px solid #F1F5F9;
+            color: var(--text-dark);
+            vertical-align: middle;
+        }
+
+        .styled-table tbody tr:hover {
+            background: #F8FAFC;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .badge-pending { background: #FEF3C7; color: #B45309; }
+        .badge-approved { background: #DCFCE7; color: #166534; }
+        .badge-scheduled { background: #E0F2FE; color: #0369A1; }
+        .badge-completed { background: #F3E8FF; color: #7E22CE; }
+
+        /* Filter Chip Bar */
+        .tab-filter-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            background: #FFFFFF;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            margin-bottom: 20px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .filter-chips-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow-x: auto;
+        }
+
+        .filter-chip {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            background: #FFFFFF;
+            color: #475569;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .filter-chip:hover {
+            background: #F1F5F9;
+            color: var(--text-dark);
+        }
+
+        .filter-chip.active {
+            background: #15803D;
+            color: white;
+            border-color: #15803D;
+            box-shadow: 0 4px 10px rgba(21, 128, 61, 0.25);
+        }
+
+        .search-box-wrap {
+            position: relative;
+            width: 280px;
+        }
+
+        .search-box-wrap i {
+            position: absolute;
+            left: 12px;
+            top: 11px;
+            color: #94A3B8;
+            font-size: 14px;
+        }
+
+        .search-box-wrap input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 12.5px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .search-box-wrap input:focus {
+            border-color: #15803D;
+            box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.12);
+        }
+
+        /* Settings Form Styling */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .settings-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .settings-card h3 {
+            margin: 0 0 6px;
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .settings-card p {
+            margin: 0 0 20px;
+            font-size: 12.5px;
+            color: var(--text-muted);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: #15803D;
+            box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.12);
+        }
+
+        .btn-save-settings {
+            padding: 11px 22px;
+            background: #15803D;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 13.5px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(21, 128, 61, 0.25);
+            transition: all 0.2s;
+        }
+
+        .btn-save-settings:hover {
+            background: #166534;
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(6px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .modal-card {
+            background: #FFFFFF;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 520px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #F1F5F9;
+            padding-bottom: 12px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .btn-modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .modal-body-box {
+            background: #F8FAFC;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .modal-body-box p {
+            margin: 0 0 8px;
+        }
+
+        .modal-body-box p:last-child {
+            margin: 0;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn-modal-cancel {
+            padding: 10px 18px;
+            background: #F1F5F9;
+            color: #475569;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn-modal-confirm {
+            padding: 10px 20px;
+            background: #15803D;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 13px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+        <div class="sidebar-header" onclick="switchNgoTab('dashboard')">
+            <div class="logo-icon">
+                <i class="fa-solid fa-heart-pulse"></i>
+            </div>
+            <div class="logo-text">
+                <h2>Jivahar</h2>
+                <span>NGO Command Center</span>
+            </div>
+        </div>
+
+        <div class="sidebar-content">
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="#" class="active" onclick="switchNgoTab('dashboard', this); return false;">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span>Dashboard Overview</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="switchNgoTab('donations', this); return false;">
+                        <i class="fa-solid fa-utensils"></i>
+                        <span>Available Stream</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="switchNgoTab('requests', this); return false;">
+                        <i class="fa-solid fa-truck-ramp-box"></i>
+                        <span>My Pickup Requests</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="switchNgoTab('reports', this); return false;">
+                        <i class="fa-solid fa-leaf"></i>
+                        <span>Impact & Reports</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#" onclick="switchNgoTab('settings', this); return false;">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Organization Settings</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div>
+                <!-- SIDEBAR RADAR STATUS CARD -->
+                <div class="sidebar-callout">
+                    <div class="icon-circle">
+                        <i class="fa-solid fa-radar"></i>
+                    </div>
+                    <h4>Radar Stream Active</h4>
+                    <p>🟢 Base Verified • Listening for nearby Tier 1 (15km) & Tier 2 (25km) food offers.</p>
+                </div>
+
+                <div class="sidebar-footer">
+                    <a href="index.html" onclick="localStorage.removeItem('jivahar_user');">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span>Sign Out Session</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN WRAPPER -->
+    <div class="main-wrapper">
+
+        <!-- TOPBAR HEADER -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="hamburger-btn" title="Toggle Sidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="topbar-title">
+                    <h1 id="ngoSectionTitle">Dashboard Overview</h1>
+                    <p id="ngoSectionDesc">Find, accept and manage food donations to serve your community.</p>
+                </div>
+            </div>
+
+            <div class="topbar-right">
+                <button class="btn-help" onclick="loadNgoDashboardData()">
+                    <i class="fa-solid fa-rotate-right" style="color: #15803D;"></i> Refresh Stream
+                </button>
+
+                <div class="notification-wrapper">
+                    <button class="icon-btn-badge" id="notificationBtn" title="Notifications">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notification-badge" id="incomingBadgeCount">0</span>
+                    </button>
+                    
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <h4>Incoming Food Offers</h4>
+                        <div id="incomingDropdownList">
+                            <div style="font-size: 12px; color: #64748B; text-align: center; padding: 10px;">
+                                Checking live donor broadcasts...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="user-profile-pill" onclick="switchNgoTab('settings')">
+                    <div class="user-avatar-circle ngo-avatar">N</div>
+                    <div class="user-info">
+                        <span class="name ngo-user-name">NGO Partner</span>
+                        <span class="role">Verified NGO</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 1. DASHBOARD OVERVIEW VIEW -->
+        <main class="workspace-body" id="dashboardMainView">
+            <!-- 4 METRIC TOP CARDS -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-yellow">
+                        <i class="fa-solid fa-bell-concierge"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Available Food Offers</span>
+                        <span class="value" id="overviewAvailableFood">0</span>
+                        <span class="subtext">⚡ Active in Radar Zone</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-green">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Accepted Pickups</span>
+                        <span class="value" id="overviewAcceptedPickups">0</span>
+                        <span class="subtext">✓ Active Claims</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-blue">
+                        <i class="fa-solid fa-weight-hanging"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Rescued Weight</span>
+                        <span class="value" id="overviewRescuedWeight">0 kg</span>
+                        <span class="subtext">Zero Food Waste</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-purple">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Community Impact</span>
+                        <span class="value" id="overviewCommunityImpact">0</span>
+                        <span class="subtext">Meals Served</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INCOMING PRIORITY DECISION NOTIFICATIONS -->
+            <div class="card-container" style="background: linear-gradient(135deg, #FEFCE8 0%, #FFFFFF 100%); border-color: #FEF08A;">
+                <div class="card-header-bar" style="border-bottom-color: #FEF08A;">
+                    <div class="card-title-group">
+                        <h3 style="display: flex; align-items: center; gap: 8px; color: #854D0E;">
+                            <i class="fa-solid fa-bolt" style="color: #EAB308;"></i> Urgent Incoming Food Offers (Requires Decision)
+                        </h3>
+                        <p>Accept food offers or pass to the next nearest NGO in the 15km / 25km priority cascade.</p>
+                    </div>
+                </div>
+
+                <div id="incomingNotificationsList">
+                    <div style="text-align: center; padding: 16px; color: #64748B; font-size: 13px;">
+                        No pending incoming donation alerts at the moment. All caught up!
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE ROW (AVAILABLE STREAM + NEARBY MAP) -->
+            <section class="middle-grid">
+                <!-- LEFT: AVAILABLE STREAM CARDS -->
+                <div class="card-container">
+                    <div class="card-header-bar">
+                        <div class="card-title-group">
+                            <h3>Surplus Food Stream</h3>
+                            <p>Real-time donations available near your base location.</p>
+                        </div>
+                        <a href="#" class="link-view-all" onclick="switchNgoTab('donations'); return false;">Browse All &rarr;</a>
+                    </div>
+
+                    <div class="donations-list">
+                        <!-- Dynamic populating by js/ngo.js -->
+                    </div>
+                </div>
+
+                <!-- RIGHT: INTERACTIVE RADAR MAP -->
+                <div class="card-container">
+                    <div class="card-header-bar">
+                        <div class="card-title-group">
+                            <h3>Surplus Food Radar Map</h3>
+                            <p>Fixed Base location & shortest volunteer routes.</p>
+                        </div>
+                    </div>
+
+                    <!-- Leaflet Map Container -->
+                    <div id="ngoMap"></div>
+
+                    <!-- Map Legend Bar -->
+                    <div class="map-legend-bar" style="display:flex; align-items:center; gap:14px; margin-top:12px; font-size:11px; color:#475569; flex-wrap:wrap;">
+                        <div class="legend-item" style="display:flex; align-items:center; gap:6px;">
+                            <span style="width:10px; height:10px; border-radius:50%; background:#16a34a; display:inline-block;"></span>
+                            <span>Available Food Pin</span>
+                        </div>
+                        <div class="legend-item" style="display:flex; align-items:center; gap:6px;">
+                            <span style="width:10px; height:10px; border-radius:50%; background:#2563eb; display:inline-block;"></span>
+                            <span>NGO Base HQ</span>
+                        </div>
+                        <div class="legend-item" style="display:flex; align-items:center; gap:6px;">
+                            <span style="width:10px; height:10px; border-radius:50%; background:#10b981; display:inline-block;"></span>
+                            <span>⚡ Tier 1 (15 km)</span>
+                        </div>
+                        <div class="legend-item" style="display:flex; align-items:center; gap:6px;">
+                            <span style="width:10px; height:10px; border-radius:50%; background:#f59e0b; display:inline-block;"></span>
+                            <span>⏱️ Tier 2 (25 km)</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- BOTTOM ROW (MY ACTIVE REQUESTS TABLE) -->
+            <div class="card-container">
+                <div class="card-header-bar">
+                    <div class="card-title-group">
+                        <h3>My Active Pickup Requests & Claims</h3>
+                        <p>Track courier pickups, volunteer assignments, and receipt status.</p>
+                    </div>
+                    <a href="#" class="link-view-all" onclick="switchNgoTab('requests'); return false;">View All Requests &rarr;</a>
+                </div>
+
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Claim ID</th>
+                            <th>Food Description</th>
+                            <th>Donor Contact</th>
+                            <th>Quantity</th>
+                            <th>Pickup Address</th>
+                            <th>Scheduled Time</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeRequestsBody">
+                        <!-- Dynamic populating by js/ngo.js -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- 2. AVAILABLE DONATIONS TAB VIEW -->
+        <main class="workspace-body" id="donationsMainView" style="display: none;">
+            <div class="tab-filter-bar">
+                <div class="filter-chips-group">
+                    <button class="filter-chip active" onclick="filterDonationCategory('all', this)"><i class="fa-solid fa-border-all"></i> All Items</button>
+                    <button class="filter-chip" onclick="filterDonationCategory('veg', this)"><i class="fa-solid fa-seedling"></i> Veg Meals</button>
+                    <button class="filter-chip" onclick="filterDonationCategory('packed', this)"><i class="fa-solid fa-box"></i> Packed Lunch</button>
+                    <button class="filter-chip" onclick="filterDonationCategory('fruits', this)"><i class="fa-solid fa-apple-whole"></i> Fruits & Fresh</button>
+                    <button class="filter-chip" onclick="filterDonationCategory('bakery', this)"><i class="fa-solid fa-cookie"></i> Bakery & Sweets</button>
+                </div>
+                <div class="search-box-wrap">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="donationSearchBox" placeholder="Search item, location, or donor..." onkeyup="searchDonationsList()">
+                </div>
+            </div>
+
+            <section class="middle-grid">
+                <div class="card-container">
+                    <div class="card-header-bar">
+                        <div class="card-title-group">
+                            <h3>Active Donations Stream</h3>
+                            <p>Browse surplus food offers listed by verified donors in your service zone.</p>
+                        </div>
+                    </div>
+
+                    <div class="donations-list" id="fullDonationsList">
+                        <!-- Dynamic rendering by js/ngo.js -->
+                    </div>
+                </div>
+
+                <div class="card-container">
+                    <div class="card-header-bar">
+                        <div class="card-title-group">
+                            <h3>Donations Radar Map</h3>
+                            <p>Full-screen interactive view of offers & volunteer routes.</p>
+                        </div>
+                    </div>
+                    <div id="ngoMapDonations"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 3. MY REQUESTS TAB VIEW -->
+        <main class="workspace-body" id="requestsMainView" style="display: none;">
+            <div class="tab-filter-bar">
+                <div class="filter-chips-group">
+                    <button class="filter-chip active" onclick="filterRequestsStatus('all', this)">All Requests</button>
+                    <button class="filter-chip" onclick="filterRequestsStatus('pending', this)">Pending</button>
+                    <button class="filter-chip" onclick="filterRequestsStatus('approved', this)">Approved</button>
+                    <button class="filter-chip" onclick="filterRequestsStatus('scheduled', this)">Scheduled</button>
+                    <button class="filter-chip" onclick="filterRequestsStatus('completed', this)">Completed</button>
+                </div>
+                <div class="search-box-wrap">
+            <div class="card-container">
+                <div class="card-header-bar">
+                    <div class="card-title-group">
+                        <h3>Operational Requests & Accepted Claims</h3>
+                        <p>Track full lifecycle of claimed donations, pickup schedules and volunteer assignments.</p>
+                    </div>
+                </div>
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Claim ID</th>
+                            <th>Food Details</th>
+                            <th>Quantity</th>
+                            <th>Donor Contact</th>
+                            <th>Pickup Address</th>
+                            <th>Status</th>
+                            <th>Shortest Route</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fullRequestsBody">
+                        <!-- Dynamic rendering by js/ngo.js -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- 4. IMPACT & REPORTS TAB VIEW -->
+        <main class="workspace-body" id="reportsMainView" style="display: none;">
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-purple">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Total People Served</span>
+                        <span class="value" id="reportPeopleServed">0</span>
+                        <span class="subtext">This Month</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-green">
+                        <i class="fa-solid fa-bag-shopping"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Food Rescued</span>
+                        <span class="value" id="reportFoodRescued">0 kg</span>
+                        <span class="subtext">Zero Waste Achieved</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-yellow">
+                        <i class="fa-solid fa-seedling"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">CO₂ Offset</span>
+                        <span class="value" id="reportCo2Offset">0 kg</span>
+                        <span class="subtext">Environmental Impact</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon-box icon-blue">
+                        <i class="fa-solid fa-handshake-angle"></i>
+                    </div>
+                    <div class="metric-details">
+                        <span class="label">Partner Donors</span>
+                        <span class="value" id="reportPartnerDonors">0</span>
+                        <span class="subtext">Active Donors</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Downloadable Reports Archive -->
+            <div class="card-container">
+                <div class="card-header-bar">
+                    <div class="card-title-group">
+                        <h3>Generated Impact Reports</h3>
+                        <p>Verified audit reports ready for download & stakeholder presentation.</p>
+                    </div>
+                </div>
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>Report Period</th>
+                            <th>Total Meals</th>
+                            <th>Rescued Weight</th>
+                            <th>Donors Joined</th>
+                            <th>Generated Date</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="impactReportsBody">
+                        <!-- Rendered dynamically by js/ngo.js -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+        <!-- 5. SETTINGS TAB VIEW -->
+        <main class="workspace-body" id="settingsMainView" style="display: none;">
+            <div class="settings-grid">
+                <!-- Profile Settings Card -->
+                <div class="settings-card">
+                    <h3><i class="fa-regular fa-building" style="color: var(--primary-green);"></i> Organization Profile</h3>
+                    <p>Update your NGO verification details, contacts and operational area.</p>
+
+                    <form id="ngoSettingsForm" onsubmit="event.preventDefault(); saveNgoSettings();">
+                        <div class="form-group">
+                            <label>NGO Organization Name (Letters Only)</label>
+                            <input type="text" class="form-control" id="settingNgoName" placeholder="NGO Organization Name" oninput="this.value=this.value.replace(/[^a-zA-Z\s]/g,'');">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Registration / License Number</label>
+                            <input type="text" class="form-control" id="settingNgoReg" placeholder="Registration / License Number" readonly style="background: #F1F5F9;">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Primary Contact Person (Letters Only)</label>
+                            <input type="text" class="form-control" id="settingNgoContact" placeholder="Primary Contact Person" oninput="this.value=this.value.replace(/[^a-zA-Z\s]/g,'');">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Official Email Address</label>
+                            <input type="email" class="form-control" id="settingNgoEmail" placeholder="Official Email Address">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Mobile Number (10 Digits Only)</label>
+                            <input type="text" class="form-control" id="settingNgoPhone" placeholder="10-digit mobile number" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value.length>10)this.value=this.value.slice(0,10);" placeholder="10-digit mobile number">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Center / Shelter Address</label>
+                            <input type="text" class="form-control" id="settingNgoAddress" placeholder="Center / Shelter Address">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Service Radius (km)</label>
+                            <select class="form-control" id="settingNgoRadius">
+                                <option value="5">5 km Radius</option>
+                                <option value="10">10 km Radius</option>
+                                <option value="15" selected>15 km Tier 1 Priority</option>
+                                <option value="25">25 km Tier 2 Secondary Cascade</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Save Profile Settings</button>
+                    </form>
+                </div>
+
+                <!-- Preferences & Alerts Card -->
+                <div class="settings-card">
+                    <h3><i class="fa-regular fa-bell" style="color: var(--primary-green);"></i> Alerts & Preferences</h3>
+                    <p>Configure automated food notifications and pickup preferences.</p>
+
+                    <div class="form-group">
+                        <label>Email Notification Alerts</label>
+                        <select class="form-control">
+                            <option>Instant Alerts for All Nearby Offers</option>
+                            <option>Tier 1 Priority Only (15km)</option>
+                            <option>Daily Digest Summary</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                        <h4 style="margin: 0 0 12px; font-size: 14px; color: var(--text-dark);">Security & Access Control</h4>
+                        <div class="form-group">
+                            <label>Current Password</label>
+                            <input type="password" class="form-control" placeholder="••••••••">
+                        </div>
+                        <div class="form-group">
+                            <label>New Password</label>
+                            <input type="password" class="form-control" placeholder="Enter new password">
+                        </div>
+                        <button type="button" class="btn-help" onclick="alert('Password updated successfully!')"><i class="fa-solid fa-key"></i> Update Password</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- REQUEST PICKUP CONFIRMATION MODAL -->
+    <div class="modal-overlay" id="requestModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Confirm Pickup Request</h3>
+                <button class="btn-modal-close" onclick="closeRequestModal()">&times;</button>
+            </div>
+            <div class="modal-body-box">
+                <p><strong>Item:</strong> <span id="modalItemTitle">-</span></p>
+                <p><strong>Quantity:</strong> <span id="modalItemQuantity">-</span></p>
+                <p><strong>Pickup Location:</strong> <span id="modalItemLocation">-</span></p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal-cancel" onclick="closeRequestModal()">Cancel</button>
+                <button class="btn-modal-confirm" onclick="confirmPickupRequest()"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DONATION DECISION & REJECTION MODAL -->
+    <div class="modal-overlay" id="ngoDecisionModal">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3 id="decisionModalHeader">Donation Request Details</h3>
+                <button class="btn-modal-close" onclick="closeDecisionModal()">&times;</button>
+            </div>
+            <div class="modal-body-box">
+                <p><strong>Donation Title:</strong> <span id="decisionItemTitle">-</span></p>
+                <p><strong>Quantity:</strong> <span id="decisionItemQty">-</span></p>
+                <p><strong>Pickup Location:</strong> <span id="decisionItemLocation">-</span></p>
+                <p><strong>Proximity Distance:</strong> <span id="decisionItemDist" style="color: #15803D; font-weight: 700;">-</span></p>
+                <p><strong>Donor Contact:</strong> <span id="decisionItemDonor">-</span></p>
+                
+                <div id="rejectionReasonBox" style="display: none; margin-top: 14px; border-top: 1px solid #E2E8F0; padding-top: 10px;">
+                    <label style="font-size: 12px; font-weight: 700; color: #DC2626; display: block; margin-bottom: 4px;">Reason for Rejection (Pass to Next NGO):</label>
+                    <select class="form-control" id="decisionRejectionReasonSelect" style="margin-bottom: 8px;">
+                        <option value="Out of capacity / Center full">Out of capacity / Center full</option>
+                        <option value="Outside operational distance">Outside operational distance</option>
+                        <option value="Logistics vehicle unavailable">Logistics vehicle unavailable</option>
+                        <option value="Food category mismatch">Food category mismatch</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions" id="decisionModalActions">
+                <button class="btn-modal-cancel" onclick="closeDecisionModal()">Close</button>
+                <button class="btn-decision-reject" id="btnConfirmModalReject" onclick="confirmModalReject()"><i class="fa-solid fa-arrow-right"></i> Pass to Next NGO</button>
+                <button class="btn-decision-accept" id="btnConfirmModalAccept" onclick="confirmModalAccept()"><i class="fa-solid fa-check"></i> Accept Donation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NGO CHECK AVAILABLE VOLUNTEERS MODAL -->
+    <div class="modal-overlay" id="ngoVolunteerAssignModal">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-users" style="color: #15803D;"></i> Check & Assign Available Volunteers</h3>
+                <button class="btn-modal-close" onclick="closeVolunteerAssignModal()">&times;</button>
+            </div>
+            <div class="modal-body-box" style="margin-bottom: 16px;">
+                <p><strong>Donation:</strong> <span id="assignModalItemTitle">-</span></p>
+                <p><strong>Pickup Address:</strong> <span id="assignModalItemLocation">-</span></p>
+                <small style="color: #64748B;">Volunteers sorted by proximity to donor location. Only AVAILABLE volunteers can be assigned.</small>
+            </div>
+            <div style="max-height: 280px; overflow-y: auto; margin-bottom: 16px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #E2E8F0; text-align: left; color: #64748B;">
+                            <th style="padding: 8px;">Volunteer</th>
+                            <th style="padding: 8px;">Availability</th>
+                            <th style="padding: 8px;">Distance</th>
+                            <th style="padding: 8px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assignVolunteersTableBody">
+                        <!-- Dynamic rendering by js/ngo.js -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal-cancel" style="width: 100%;" onclick="closeVolunteerAssignModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NGO MANDATORY LOCATION SETUP GATE MODAL -->
+    <div class="modal-overlay" id="ngoLocationSetupModal" style="display: none; position: fixed; inset: 0; z-index: 99999; background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px;">
+        <div class="modal-card" style="max-width: 650px; width: 100%; background: #ffffff; border-radius: 18px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; display: flex; flex-direction: column;">
+            <div style="padding: 20px 24px; background: linear-gradient(135deg, #15803D 0%, #166534 100%); color: #ffffff; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-map-location-dot"></i> Set Your NGO Headquarters Location
+                    </h3>
+                    <p style="margin: 4px 0 0 0; font-size: 12px; color: #dcfce7; opacity: 0.9;">
+                        Required: Pinpoint your physical NGO base location on the map to unlock dashboard operations.
+                    </p>
+                </div>
+            </div>
+            <div style="padding: 20px 24px; flex: 1;">
+                <div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div style="position: relative; flex: 1; min-width: 200px;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 12px; color: #94a3b8;"></i>
+                        <input type="text" id="setupSearchInput" placeholder="Search address, landmark, city (e.g. Gandhi Nagar, Ballari)" style="width: 100%; padding: 10px 12px 10px 36px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 13px;" onkeypress="if(event.key==='Enter') searchSetupAddress()">
+                    </div>
+                    <button type="button" onclick="searchSetupAddress()" style="padding: 10px 16px; background: #2563eb; color: #fff; border: none; border-radius: 10px; font-weight: 700; font-size: 13px; cursor: pointer;">
+                        Search
+                    </button>
+                    <button type="button" onclick="useCurrentGpsLocationForSetup()" style="padding: 10px 16px; background: #16a34a; color: #fff; border: none; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(22, 163, 74, 0.25);">
+                        <i class="fa-solid fa-crosshairs"></i> Use My Current Location
+                    </button>
+                </div>
+
+                <div id="setupLocationMap" style="height: 300px; width: 100%; border-radius: 12px; border: 1px solid #e2e8f0;"></div>
+
+                <div style="margin-top: 14px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Selected Base Address:</div>
+                    <div id="setupSelectedAddressText" style="font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 4px;">
+                        #42, Gandhi Nagar, Ballari, Karnataka (Default Pin)
+                    </div>
+                    <div id="setupCoordsText" style="font-size: 11px; color: #16a34a; font-weight: 600; margin-top: 2px;">
+                        Lat: 12.9784, Lng: 77.6408
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 16px 24px; background: #f1f5f9; border-top: 1px solid #e2e8f0; text-align: right;">
+                <button type="button" id="btnConfirmSetupLocation" onclick="confirmNgoLocationSetup()" style="padding: 12px 24px; background: #15803d; color: #ffffff; border: none; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(21,128,61,0.25);">
+                    <i class="fa-solid fa-circle-check"></i> Confirm Base Location & Unlock Operations
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Components & NGO Logic Script Engine -->
+    <script src="js/map-components.js"></script>
+    <script src="js/ngo.js"></script>
+</body>
+</html>

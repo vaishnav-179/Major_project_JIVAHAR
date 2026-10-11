@@ -1,0 +1,65 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Jivahar – Food Donor Login</title><!-- Font Awesome --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><link rel="stylesheet" href="style.css?v=9"></head><body class="auth-body" style="background: #E8F5E9;"><div class="login-page-wrapper"><div class="login-card-container" style="max-width: 1140px;"><!-- LEFT HERO PANEL --><div class="login-hero-panel"><div class="login-hero-top"><div class="login-hero-logo" onclick="window.location.href='index.html'" style="cursor: pointer;"><div class="brand-logo-img" style="background: #15803D; color: #FFF;"><i class="fa-solid fa-leaf"></i></div><div class="brand-logo-text"><span class="brand-title" style="font-size: 26px; color: #15803D;">Jivahar</span><span class="brand-tagline" style="font-size: 11px;">Serving Lives Through Meals</span></div></div><h1 class="login-hero-title" style="font-size: 32px; line-height: 1.2;">Share Food,
+<br><span style="color: #15803D;">Share Hope</span></h1><p class="login-hero-subtitle" style="font-size: 13px; margin-bottom: 16px;">Donate surplus food and help reduce hunger in the community. Your kindness can <strong style="color: #15803D;">save lives</strong>. </p></div><!-- HERO ILLUSTRATION GRAPHIC --><div class="login-hero-illustration" style="margin: 0 0 16px;"><img src="assets/jivahar_login_hero.png" alt="Jivahar Food Donation Hero" style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.08);"></div><!-- BOTTOM 4 PILLARS GLASS BAR --><div class="login-features-row"><div class="login-feature-item"><div class="login-feature-icon"><i class="fa-solid fa-hand-holding-heart"></i></div><span class="login-feature-label">Reduce Hunger</span></div><div class="login-feature-item"><div class="login-feature-icon"><i class="fa-solid fa-arrows-rotate"></i></div><span class="login-feature-label">Reduce Food Waste</span></div><div class="login-feature-item"><div class="login-feature-icon"><i class="fa-solid fa-people-group"></i></div><span class="login-feature-label">Build Stronger Communities</span></div><div class="login-feature-item"><div class="login-feature-icon"><i class="fa-solid fa-shield-halved"></i></div><span class="login-feature-label">Trusted & Secure</span></div></div></div><!-- RIGHT FORM PANEL --><div class="login-form-panel"><div class="login-header-bar" style="display: flex; gap: 10px; justify-content: flex-end;">
+  <select class="filter-select" style="border-radius: 20px; font-weight: 600; cursor: pointer;" onchange="if(this.value) window.location.href=this.value;">
+    <option value="">👤 Login As...</option>
+    <option value="login-ngo.html">NGO Partner</option>
+    <option value="login-volunteer.html">Volunteer</option>
+    <option value="login-manufacturer.html">Manufacturer</option>
+    <option value="login-admin.html">Admin</option>
+  </select>
+  <select class="filter-select" style="border-radius: 20px; font-weight: 600;"><option>🌐 English</option></select>
+</div><div class="login-header-center"><div class="login-heart-avatar" style="background: #DCFCE7; color: #15803D;"><i class="fa-solid fa-hand-holding-heart" style="font-size: 26px;"></i></div><h2 class="login-welcome-text">Welcome,
+Donor ! 👋</h2><p class="login-welcome-sub">Login to continue your good work.</p></div><div class="login-tabs-bar"><button class="login-tab-btn active" id="loginTabBtn" onclick="switchFormTab('login')">Login</button><button class="login-tab-btn" id="registerTabBtn" onclick="switchFormTab('register')">Register</button></div><div class="flip-container" id="authFlipContainer" style="perspective: 1000px; width: 100%;"><div class="flipper" id="authFlipper" style="transition: transform 0.6s; transform-style: preserve-3d; display: grid; width: 100%;"><div class="front" id="frontLogin" style="backface-visibility: hidden; grid-area: 1 / 1; width: 100%; background: #fff; z-index: 2;"><!-- LOGIN FORM --><form id="loginForm" onsubmit="JivaharAuth.handleLogin(event, 'donor')"><div class="input-with-icon"><i class="fa-regular fa-envelope input-lead-icon"></i><input type="email" placeholder="Email" required></div><div class="input-with-icon"><i class="fa-solid fa-lock input-lead-icon"></i><input type="password" id="donorPassword" placeholder="Password" required><i class="fa-regular fa-eye-slash input-eye-icon" onclick="togglePassVisibility('donorPassword', this)"></i></div><div class="login-options-row"><label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" checked><span>Remember Me</span></label><a href="#" style="color: #15803D; font-weight: 700; text-decoration: none;" onclick="alert('Password reset link sent to your email!')">Forgot Password?</a></div><button type="submit" class="btn-login-submit"><i class="fa-solid fa-arrow-right-to-bracket"></i>Login </button></form></div><div class="back" id="backRegister" style="backface-visibility: hidden; grid-area: 1 / 1; width: 100%; transform: rotateY(180deg); background: #fff; pointer-events: none;"><!-- REGISTER FORM --><form id="registerForm" onsubmit="JivaharAuth.handleRegister(event, 'donor')"><div class="form-step step-1">
+<div class="input-with-icon"><i class="fa-solid fa-utensils input-lead-icon"></i><input type="text" placeholder="Donor / Business Name" required></div><div class="input-with-icon"><i class="fa-regular fa-envelope input-lead-icon"></i><input type="email" placeholder="Email Address" required></div><div class="input-with-icon"><i class="fa-solid fa-phone input-lead-icon"></i><input type="tel" placeholder="Mobile Number" required maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');"></div><button type="button" class="btn-login-submit" style="margin-top: 10px;" onclick="nextStep(this)">Next <i class="fa-solid fa-arrow-right"></i></button>
+</div>
+<div class="form-step step-2" style="display: none;">
+<div class="input-with-icon"><i class="fa-solid fa-lock input-lead-icon"></i><input type="password" placeholder="Create Password (e.g. Donor@123)" required></div><div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">🔒 Password must include letters,
+numbers & special char (@#$%^&*). </div><div class="password-validation-msg" style="font-size: 11px; margin-top: 4px; font-weight: 700;"></div><div class="input-with-icon" style="margin-top: 10px;"><i class="fa-solid fa-lock input-lead-icon"></i><input type="password" placeholder="Confirm Password" required class="confirm-password-input"></div><div class="confirm-password-validation-msg" style="font-size: 11px; margin-top: 4px; font-weight: 700;"></div><div style="display: flex; gap: 10px; margin-top: 10px;">
+<button type="button" class="btn-login-submit" style="background: #e2e8f0; color: #333; flex: 0.4;" onclick="prevStep(this)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+<button type="submit" class="btn-login-submit" style="flex: 1;"><i class="fa-solid fa-user-plus"></i>Register as Donor </button>
+</div>
+</div></form></div></div></div><div class="login-divider-line"><span>or continue with</span></div><div class="social-login-grid"><button class="social-btn" onclick="window.location.href='donor.html'"><i class="fa-brands fa-google" style="color: #EA4335;"></i></button><button class="social-btn" onclick="window.location.href='donor.html'"><i class="fa-brands fa-facebook" style="color: #1877F2;"></i></button><button class="social-btn" onclick="window.location.href='donor.html'"><i class="fa-brands fa-apple" style="color: #000000;"></i></button></div><div id="authFooterText" style="text-align: center; font-size: 13px; color: var(--text-muted);">Don't have an account? <a href="#" style="color: #15803D; font-weight: 700; text-decoration: none;" onclick="switchFormTab('register')">Register here</a></div></div></div></div><script src="js/auth.js"></script>
+<script>function switchFormTab(tab) {
+  const loginBtn=document.getElementById('loginTabBtn');
+  const regBtn=document.getElementById('registerTabBtn');
+  const flipper=document.getElementById('authFlipper');
+  const front=document.getElementById('frontLogin');
+  const back=document.getElementById('backRegister');
+  const footer=document.getElementById('authFooterText');
+
+  if (tab==='login') {
+    loginBtn.classList.add('active');
+    regBtn.classList.remove('active');
+    flipper.style.transform = 'rotateY(0deg)';
+    front.style.pointerEvents = 'auto';
+    back.style.pointerEvents = 'none';
+    if(footer) footer.innerHTML = `Don't have an account? <a href="#" style="color: #15803D; font-weight: 700; text-decoration: none;" onclick="switchFormTab('register')">Register here</a>`;
+  } else {
+    regBtn.classList.add('active');
+    loginBtn.classList.remove('active');
+    flipper.style.transform = 'rotateY(180deg)';
+    front.style.pointerEvents = 'none';
+    back.style.pointerEvents = 'auto';
+    if(footer) footer.innerHTML = `Already have an account? <a href="#" style="color: #15803D; font-weight: 700; text-decoration: none;" onclick="switchFormTab('login')">Login here</a>`;
+  }
+}
+
+
+
+function togglePassVisibility(inputId, iconEl) {
+  const input=document.getElementById(inputId);
+
+  if (input.type==='password') {
+    input.type='text';
+    iconEl.classList.remove('fa-eye-slash');
+    iconEl.classList.add('fa-eye');
+  }
+
+  else {
+    input.type='password';
+    iconEl.classList.remove('fa-eye');
+    iconEl.classList.add('fa-eye-slash');
+  }
+}
+
+</script></body></html>
