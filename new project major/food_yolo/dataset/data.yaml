@@ -1,0 +1,10 @@
+path: c:/Users/VAISHNAV/Desktop/PROJECTS/new project major/food_yolo/dataset
+train: images/train
+val: images/test
+test: images/test
+
+names:
+  0: chutney
+  1: dosa
+  2: idli
+  3: vada
