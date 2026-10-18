@@ -441,12 +441,40 @@ function ensureFixedDonationCoordinates(donation) {
 // ============================================
 // DATA FETCHING & RENDERING
 // ============================================
+// Local cache of rejected donation IDs for current NGO
+let savedNgoRejected = [];
+try {
+    savedNgoRejected = JSON.parse(localStorage.getItem('jivahar_ngo_rejected_donations') || '[]');
+} catch(e) {}
+window.localNgoRejectedDonations = new Set(savedNgoRejected);
+
+function isDonationRejectedByNgo(d) {
+    if (!d) return false;
+    const ngoId = currentNgoUser?._id ? String(currentNgoUser._id) : '';
+    const donId = String(d._id);
+    if (window.localNgoRejectedDonations && window.localNgoRejectedDonations.has(donId)) {
+        return true;
+    }
+    if (ngoId && Array.isArray(d.rejected_by) && d.rejected_by.some(r => String(r) === ngoId)) {
+        return true;
+    }
+    if (ngoId && d.notification_cascade && Array.isArray(d.notification_cascade.history)) {
+        if (d.notification_cascade.history.some(h => h.action === 'ngo_rejected' && String(h.ngo_id) === ngoId)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function loadNgoDashboardData() {
-    fetch(`${API_BASE}/donations/all`)
+    const ngoId = currentNgoUser?._id || '';
+    const url = ngoId ? `${API_BASE}/donations/all?ngo_id=${encodeURIComponent(ngoId)}` : `${API_BASE}/donations/all`;
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             if (data.success && data.donations) {
-                allAvailableDonations = data.donations;
+                // Filter out any donations that have been passed/rejected by this NGO
+                allAvailableDonations = data.donations.filter(d => !isDonationRejectedByNgo(d));
                 allAvailableDonations.forEach(ensureFixedDonationCoordinates);
 
                 renderIncomingNotifications(allAvailableDonations);
@@ -477,8 +505,8 @@ function renderIncomingNotifications(donations) {
     const badgeEl = document.getElementById('incomingBadgeCount');
     if (!listContainer) return;
 
-    // Filter donations where status is Pending or active for NGO decision
-    const pendingIncoming = donations.filter(d => d.status === 'Pending');
+    // Filter donations where status is Pending and not passed/rejected by this NGO
+    const pendingIncoming = donations.filter(d => d.status === 'Pending' && !isDonationRejectedByNgo(d));
 
     if (badgeEl) badgeEl.textContent = `${pendingIncoming.length} Pending`;
 
@@ -538,7 +566,7 @@ function renderAvailableDonationsList(donations) {
     const streamContainer = document.getElementById('fullDonationsList');
     const dashboardContainer = document.querySelector('.donations-list');
 
-    const available = donations.filter(d => d.status === 'Pending' || d.status === 'Accepted');
+    const available = donations.filter(d => (d.status === 'Pending' || d.status === 'Accepted') && !isDonationRejectedByNgo(d));
 
     const renderCardHtml = (donation) => {
         const firstItem = (donation.items && donation.items.length > 0) ? donation.items[0] : { name: "Food Package", category: "Cooked" };
@@ -1186,10 +1214,32 @@ window.closeDecisionModal = function() {
 window.confirmModalReject = function() {
     if (!currentRejectingDonationId) return;
 
+    const donationId = String(currentRejectingDonationId);
     const reasonSelect = document.getElementById('decisionRejectionReasonSelect');
     const reason = reasonSelect ? reasonSelect.value : 'Out of capacity';
 
-    fetch(`${API_BASE}/donations/reject/${currentRejectingDonationId}`, {
+    // 1. Immediately cache rejection locally
+    if (window.localNgoRejectedDonations) {
+        window.localNgoRejectedDonations.add(donationId);
+        try {
+            localStorage.setItem('jivahar_ngo_rejected_donations', JSON.stringify([...window.localNgoRejectedDonations]));
+        } catch(e) {}
+    }
+
+    // 2. Immediately remove from current in-memory lists for zero-latency UI update
+    if (Array.isArray(allAvailableDonations)) {
+        allAvailableDonations = allAvailableDonations.filter(d => String(d._id) !== donationId);
+        renderIncomingNotifications(allAvailableDonations);
+        renderAvailableDonationsList(allAvailableDonations);
+        updateNgoMapMarkers(allAvailableDonations);
+        updateNgoMetrics(allAvailableDonations);
+    }
+
+    closeDecisionModal();
+    showToast("Donation passed / removed from your dashboard.");
+
+    // 3. Send API request to persist rejection in database
+    fetch(`${API_BASE}/donations/reject/${donationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ngo_id: currentNgoUser?._id, reason: reason })
@@ -1197,11 +1247,9 @@ window.confirmModalReject = function() {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            showToast("Donation passed to next available NGO tier.");
             loadNgoDashboardData();
-            closeDecisionModal();
         } else {
-            alert("Error: " + data.message);
+            console.warn("Backend rejection notice:", data.message);
         }
     })
     .catch(err => console.error("Error rejecting donation:", err));

@@ -897,146 +897,505 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDraft();
 
 
-    // 5. Add Food Item Logic
-    const btnAddItem = document.getElementById('btn-add-food-item');
-    if(btnAddItem) {
-        btnAddItem.addEventListener('click', (e) => {
-            const nameEl = document.getElementById('add-item-name');
-            const categoryEl = document.getElementById('add-item-category');
-            const typeEl = document.getElementById('add-item-type');
-            const qtyEl = document.getElementById('add-item-qty');
-            const unitEl = document.getElementById('add-item-unit');
-            const pkgsEl = document.getElementById('add-item-pkgs');
-            const prepEl = document.getElementById('add-item-prep');
-            const bestEl = document.getElementById('add-item-best');
-            const pkgTypeEl = document.getElementById('add-item-pkg-type');
+    // 5. YOLO Food Detection & Add Food Item Logic
+    let currentUploadedPhotoDataUrl = null;
+    const photoInput = document.getElementById('add-item-photo');
+    const photoContainer = document.getElementById('photo-upload-container');
+    const photoText = document.getElementById('photo-upload-text');
+    const photoOptional = document.getElementById('photo-upload-optional');
+    const yoloStatusBox = document.getElementById('yolo-detection-status');
+    const foodNameInput = document.getElementById('add-item-name');
 
-            if(!nameEl || !nameEl.value.trim() || 
-               !categoryEl || categoryEl.value.includes('Select') || 
-               !typeEl || typeEl.value.includes('Select') ||
-               !qtyEl || !qtyEl.value || 
-               !unitEl || unitEl.value.includes('Select') || 
-               !pkgsEl || !pkgsEl.value ||
-               !prepEl || !prepEl.value || 
-               !bestEl || !bestEl.value || 
-               !pkgTypeEl || pkgTypeEl.value.includes('Select')) {
-                alert('Please fill in all mandatory fields correctly.');
-                return;
-            }
+    if (photoInput) {
+        photoInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
 
-            const qty = Number(qtyEl.value);
-            const pkgs = Number(pkgsEl.value);
-            
-            if (qty < 1 || pkgs < 1) {
-                alert('Quantity and Number of Packages must be at least 1.');
-                return;
-            }
-
-            const prepDate = new Date(prepEl.value);
-            const bestDate = new Date(bestEl.value);
-            const now = new Date();
-            
-            // Set 'now' to start of today for past date validation
-            now.setHours(0,0,0,0);
-            
-            if (prepDate < now) {
-                alert('Prepared time cannot be in the past.');
-                return;
-            }
-
-            const diffHours = (bestDate - prepDate) / (1000 * 60 * 60);
-            if (diffHours <= 0 || diffHours > 24) {
-                alert('Best before date must be after the prepared time and within 24 hours.');
-                return;
-            }
-
-            const name = nameEl.value.trim();
-            const category = categoryEl.value;
-            const type = typeEl.value;
-            const unit = unitEl.value;
-            const prep = prepEl.value;
-            
-            // Add to array
-            const item = { name, category, type, quantity: qty, unit, packages: pkgs, prepDate: prep };
-            
-            const finishAdding = (finalItem) => {
-                currentDonationItems.push(finalItem);
-                
-                // Re-render UI
-                renderFoodItems();
-                saveDraft();
-                
-                // Clear form
-                nameEl.value = '';
-                qtyEl.value = '';
-                pkgsEl.value = '';
-                prepEl.value = '';
-                bestEl.value = '';
-                categoryEl.selectedIndex = 0;
-                typeEl.selectedIndex = 0;
-                unitEl.selectedIndex = 0;
-                pkgTypeEl.selectedIndex = 0;
-                
-                // Also reset photo upload preview if exists
-                const photoText = document.getElementById('photo-upload-text');
-                const photoContainer = document.getElementById('photo-upload-container');
-                const photoInput = document.getElementById('add-item-photo');
-                
-                if(photoInput) photoInput.value = '';
-                if (photoContainer && photoText) {
-                    photoText.innerText = 'Upload Photo';
-                    photoContainer.style.backgroundImage = 'none';
-                    const cam = photoContainer.querySelector('.fa-camera');
-                    if (cam) {
-                        cam.style.opacity = '1';
-                        cam.style.color = '';
-                        cam.style.textShadow = 'none';
-                    }
-                    photoText.style.color = '';
-                    photoText.style.background = 'none';
+            // 1. Show immediate preview thumbnail
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                currentUploadedPhotoDataUrl = ev.target.result;
+                if (photoContainer) {
+                    photoContainer.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.5)), url(${currentUploadedPhotoDataUrl})`;
+                    photoContainer.style.backgroundSize = 'cover';
+                    photoContainer.style.backgroundPosition = 'center';
+                }
+                if (photoText) {
+                    photoText.innerText = 'Change Uploaded Photo';
+                    photoText.style.color = '#ffffff';
+                    photoText.style.textShadow = '0 1px 3px rgba(0,0,0,0.8)';
+                }
+                if (photoOptional) {
+                    photoOptional.innerText = file.name;
+                    photoOptional.style.color = '#e2e8f0';
                 }
             };
+            reader.readAsDataURL(file);
 
-            const photoInput = document.getElementById('add-item-photo');
-            if (photoInput && photoInput.files && photoInput.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    item.photo = ev.target.result;
-                    finishAdding(item);
-                    saveDraft();
-                };
-                reader.readAsDataURL(photoInput.files[0]);
+            // 2. Display loading state in YOLO status banner
+            if (yoloStatusBox) {
+                yoloStatusBox.style.display = 'block';
+                yoloStatusBox.innerHTML = `
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; color: #1e40af; font-size: 13px; display: flex; align-items: center; gap: 12px;">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 18px; color: #2563eb;"></i>
+                        <div>
+                            <strong style="display:block;">Running YOLO Food Detection...</strong>
+                            <span style="font-size:12px; opacity:0.85;">Analyzing uploaded photo with YOLO model from 'new project major'...</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 3. Call backend API with multi-endpoint resolution
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const candidateEndpoints = [
+                    (typeof API_BASE !== 'undefined' ? `${API_BASE}/ai/detect-food` : 'http://127.0.0.1:5000/api/ai/detect-food'),
+                    'http://127.0.0.1:5000/api/ai/detect-food',
+                    'http://localhost:5000/api/ai/detect-food',
+                    '/api/ai/detect-food'
+                ];
+
+                let result = null;
+                for (const url of candidateEndpoints) {
+                    try {
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (res.ok) {
+                            result = await res.json();
+                            if (result && result.success) break;
+                        }
+                    } catch (netErr) {
+                        // Continue to next endpoint candidate
+                    }
+                }
+
+                // Check whether food was actually detected
+                if (!result || !result.success || !result.food_detected || !result.food_items || result.food_items.length === 0) {
+                    window.currentDetectedFoodItems = [];
+                    if (foodNameInput) foodNameInput.value = '';
+                    
+                    const singleQtyGroup = document.getElementById('single-item-quantity-group');
+                    const multiQtyGroup = document.getElementById('multi-item-quantities-group');
+                    if (singleQtyGroup) singleQtyGroup.style.display = 'block';
+                    if (multiQtyGroup) multiQtyGroup.style.display = 'none';
+
+                    if (yoloStatusBox) {
+                        yoloStatusBox.innerHTML = `
+                            <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px 16px; color: #991b1b; font-size: 13px; display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: #ef4444; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                                <div>
+                                    <strong style="display:block; font-size: 13.5px; color: #991b1b;">No Food Detected in Uploaded Image</strong>
+                                    <span style="font-size:12px; color:#b91c1c; opacity:0.9;">The YOLO model could not identify food in this photo. Please upload a clear photo of food (e.g. Dosa, Idli, Vada, Chutney).</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+
+                // Food WAS detected!
+                window.currentDetectedFoodItems = result.food_items;
+                const singleQtyGroup = document.getElementById('single-item-quantity-group');
+                const multiQtyGroup = document.getElementById('multi-item-quantities-group');
+                const multiList = document.getElementById('multi-item-quantities-list');
+
+                if (result.multiple_items && result.food_items.length > 1) {
+                    // MULTIPLE FOOD ITEMS DETECTED: accurately configure separate items
+                    const summaryTitle = result.food_items.map(fi => fi.name).join(' & ');
+                    if (foodNameInput) foodNameInput.value = summaryTitle;
+
+                    if (singleQtyGroup) singleQtyGroup.style.display = 'none';
+                    if (multiQtyGroup) multiQtyGroup.style.display = 'block';
+
+                    if (multiList) {
+                        multiList.innerHTML = result.food_items.map((fi) => {
+                            const confPct = Math.round((fi.confidence || 0.9) * 100);
+                            return `
+                                <div style="background:#ffffff; border:1px solid #86efac; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                                        <strong style="font-size:13.5px; color:#14532d; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-solid fa-utensils" style="color:#16a34a;"></i> ${fi.name}
+                                        </strong>
+                                        <span style="background:#dcfce7; color:#15803d; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px;">${confPct}% match</span>
+                                    </div>
+                                    <div style="display:flex; gap:8px;">
+                                        <input type="number" class="form-control multi-item-qty-input" data-food-name="${fi.name}" value="${fi.count || 5}" min="1" placeholder="Quantity" style="flex:2;" oninput="if(this.value < 1 && this.value !== '') this.value = 1;">
+                                        <select class="form-control multi-item-unit-select" data-food-name="${fi.name}" style="flex:1;">
+                                            <option value="plates" ${fi.default_unit === 'plates' ? 'selected' : ''}>plates</option>
+                                            <option value="pieces" ${fi.default_unit === 'pieces' ? 'selected' : ''}>pieces</option>
+                                            <option value="servings" ${fi.default_unit === 'servings' ? 'selected' : ''}>servings</option>
+                                            <option value="kg" ${fi.default_unit === 'kg' ? 'selected' : ''}>kg</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+
+                    if (yoloStatusBox) {
+                        yoloStatusBox.innerHTML = `
+                            <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; color: #166534; font-size: 13px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: #22c55e; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px;">
+                                        <i class="fa-solid fa-layer-group"></i>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 14px; font-weight: 700; color: #14532d;">
+                                            ${result.food_items.length} Distinct Food Items Detected: ${summaryTitle}
+                                        </div>
+                                        <div style="font-size: 11px; color: #15803d; margin-top: 2px;">
+                                            <i class="fa-solid fa-microchip"></i> Identified by YOLO model • Each item will be added separately
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="badge" style="background:#16a34a; color:#fff; font-size:11px; padding:4px 10px; border-radius:12px;">
+                                    <i class="fa-solid fa-robot"></i> Multi-Item YOLO
+                                </span>
+                            </div>
+                        `;
+                    }
+                } else {
+                    // SINGLE FOOD ITEM DETECTED
+                    const singleItem = result.food_items[0];
+                    if (foodNameInput) foodNameInput.value = singleItem.name;
+
+                    if (singleQtyGroup) singleQtyGroup.style.display = 'block';
+                    if (multiQtyGroup) multiQtyGroup.style.display = 'none';
+
+                    const qtyEl = document.getElementById('add-item-qty');
+                    const unitEl = document.getElementById('add-item-unit');
+                    if (qtyEl) qtyEl.value = singleItem.count || 5;
+                    if (unitEl && singleItem.default_unit) unitEl.value = singleItem.default_unit;
+
+                    const confPercent = Math.round((singleItem.confidence || 0.9) * 100);
+                    const confBadge = `<span style="background:#dcfce7; color:#166534; font-weight:700; font-size:11px; padding:3px 8px; border-radius:12px; margin-left:6px;">${confPercent}% match</span>`;
+
+                    if (yoloStatusBox) {
+                        yoloStatusBox.innerHTML = `
+                            <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; color: #166534; font-size: 13px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: #22c55e; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px;">
+                                        <i class="fa-solid fa-check"></i>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 14px; font-weight: 700; color: #14532d;">
+                                            Identified Food: ${singleItem.name} ${confBadge}
+                                        </div>
+                                        <div style="font-size: 11px; color: #15803d; margin-top: 2px;">
+                                            <i class="fa-solid fa-microchip"></i> Detected by YOLO food model
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="badge" style="background:#16a34a; color:#fff; font-size:11px; padding:4px 10px; border-radius:12px;">
+                                    <i class="fa-solid fa-robot"></i> YOLO AI
+                                </span>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (err) {
+                console.error("YOLO detection error:", err);
+                window.currentDetectedFoodItems = [];
+                if (foodNameInput) foodNameInput.value = '';
+                if (yoloStatusBox) {
+                    yoloStatusBox.innerHTML = `
+                        <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px 16px; color: #991b1b; font-size: 13px; display: flex; align-items: center; gap: 10px;">
+                            <i class="fa-solid fa-triangle-exclamation" style="font-size:18px; color:#ef4444;"></i>
+                            <div>
+                                <strong>Food Detection Notice</strong>
+                                <div style="font-size: 11px;">Could not classify food in this image. Please upload a clear photo of food.</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        });
+    }
+
+    // Global form reset function to ensure all fields are completely blank for next item
+    window.resetAddFoodItemForm = function() {
+        const nameEl = document.getElementById('add-item-name');
+        const prepEl = document.getElementById('add-item-prep');
+        const qtyEl = document.getElementById('add-item-qty');
+        const unitEl = document.getElementById('add-item-unit');
+        const storageEl = document.getElementById('add-item-storage');
+        const photoInput = document.getElementById('add-item-photo');
+        const photoContainer = document.getElementById('photo-upload-container');
+        const photoText = document.getElementById('photo-upload-text');
+        const photoOptional = document.getElementById('photo-upload-optional');
+        const yoloStatusBox = document.getElementById('yolo-detection-status');
+        const singleQtyGroup = document.getElementById('single-item-quantity-group');
+        const multiQtyGroup = document.getElementById('multi-item-quantities-group');
+        const multiList = document.getElementById('multi-item-quantities-list');
+
+        if (nameEl) nameEl.value = '';
+        if (prepEl) prepEl.value = '';
+        if (qtyEl) qtyEl.value = '';
+        if (unitEl) unitEl.selectedIndex = 0;
+        if (storageEl) storageEl.selectedIndex = 0;
+        if (photoInput) photoInput.value = '';
+        currentUploadedPhotoDataUrl = null;
+        window.currentDetectedFoodItems = [];
+
+        if (singleQtyGroup) singleQtyGroup.style.display = 'block';
+        if (multiQtyGroup) multiQtyGroup.style.display = 'none';
+        if (multiList) multiList.innerHTML = '';
+
+        if (photoContainer) {
+            photoContainer.style.backgroundImage = 'none';
+            photoContainer.style.backgroundColor = '#f8fafc';
+        }
+        if (photoText) {
+            photoText.innerText = 'Click to Upload Food Photo';
+            photoText.style.color = '#0f172a';
+            photoText.style.textShadow = 'none';
+        }
+        if (photoOptional) {
+            photoOptional.innerText = 'YOLO AI model will automatically detect the food item';
+            photoOptional.style.color = '#64748b';
+        }
+        if (yoloStatusBox) {
+            yoloStatusBox.style.display = 'none';
+            yoloStatusBox.innerHTML = '';
+        }
+    };
+
+    // Add Food Item Click Handler (Validates Photo, Cooked Time, Quantity & evaluates Shelf Life with Ollama)
+    const btnAddItem = document.getElementById('btn-add-food-item');
+    if (btnAddItem) {
+        btnAddItem.addEventListener('click', async (e) => {
+            const nameEl = document.getElementById('add-item-name');
+            const prepEl = document.getElementById('add-item-prep');
+            const qtyEl = document.getElementById('add-item-qty');
+            const unitEl = document.getElementById('add-item-unit');
+            const storageEl = document.getElementById('add-item-storage');
+
+            // 1. Photo validation
+            if (!currentUploadedPhotoDataUrl && (!photoInput || !photoInput.files || !photoInput.files[0])) {
+                alert('Please upload a food photo so the YOLO AI model can identify it.');
+                return;
+            }
+
+            // Food item detection validation: require valid detected food
+            if (!window.currentDetectedFoodItems || window.currentDetectedFoodItems.length === 0) {
+                if (!nameEl || !nameEl.value.trim()) {
+                    alert('No food items were detected in the uploaded photo. Please upload a clear photo showing food (e.g. Dosa, Idli, Vada, Chutney).');
+                    return;
+                }
+            }
+
+            // 2. Cooked time validation
+            if (!prepEl || !prepEl.value) {
+                alert('Please select the Cooked Time (when the food was prepared).');
+                if (prepEl) prepEl.focus();
+                return;
+            }
+
+            const prep = prepEl.value;
+            const storage = storageEl ? storageEl.value : 'Room Temperature';
+
+            // 3. Determine items to add (single vs multiple detected items)
+            let itemsToProcess = [];
+            if (window.currentDetectedFoodItems && window.currentDetectedFoodItems.length > 1) {
+                // MULTIPLE DETECTED ITEMS: process and add each item individually!
+                for (const det of window.currentDetectedFoodItems) {
+                    const qInput = document.querySelector(`.multi-item-qty-input[data-food-name="${det.name}"]`);
+                    const uSelect = document.querySelector(`.multi-item-unit-select[data-food-name="${det.name}"]`);
+                    const qVal = qInput ? Number(qInput.value) : (det.count || 1);
+                    const uVal = uSelect ? uSelect.value : (det.default_unit || 'plates');
+                    itemsToProcess.push({
+                        name: det.name,
+                        quantity: Math.max(1, qVal),
+                        unit: uVal
+                    });
+                }
             } else {
-                finishAdding(item);
-                    saveDraft();
+                // SINGLE DETECTED ITEM
+                const qty = qtyEl ? Number(qtyEl.value) : 1;
+                if (!qtyEl || !qtyEl.value || isNaN(qty) || qty < 1) {
+                    alert('Please enter a valid Quantity (at least 1).');
+                    if (qtyEl) qtyEl.focus();
+                    return;
+                }
+                const unit = unitEl ? unitEl.value : 'plates';
+                const name = (window.currentDetectedFoodItems && window.currentDetectedFoodItems[0]?.name) || (nameEl && nameEl.value.trim()) || 'Food Item';
+                itemsToProcess.push({
+                    name: name,
+                    quantity: qty,
+                    unit: unit
+                });
+            }
+
+            // Show feedback during edibility analysis
+            const origBtnText = btnAddItem.innerHTML;
+            btnAddItem.disabled = true;
+            btnAddItem.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking Shelf Life (Ollama AI)...';
+
+            // Helper to evaluate shelf-life for each individual item
+            async function evaluateItemEdibility(itemName) {
+                let edibilityData = null;
+                try {
+                    const endpoints = [
+                        (typeof API_BASE !== 'undefined' ? `${API_BASE}/ai/analyze-shelf-life` : 'http://127.0.0.1:5000/api/ai/analyze-shelf-life'),
+                        'http://127.0.0.1:5000/api/ai/analyze-shelf-life',
+                        'http://localhost:5000/api/ai/analyze-shelf-life',
+                        '/api/ai/analyze-shelf-life'
+                    ];
+
+                    for (const ep of endpoints) {
+                        try {
+                            const res = await fetch(ep, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    food_name: itemName,
+                                    prep_time: prep,
+                                    storage_condition: storage
+                                })
+                            });
+                            if (res.ok) {
+                                edibilityData = await res.json();
+                                if (edibilityData && edibilityData.success) break;
+                            }
+                        } catch (e) {}
+                    }
+                } catch (err) {
+                    console.error("Shelf life evaluation error:", err);
+                }
+
+                if (!edibilityData || !edibilityData.success) {
+                    const now = new Date();
+                    const prepDate = new Date(prep);
+                    const diffHours = Math.max(0, (now - prepDate) / (1000 * 60 * 60));
+                    let baseShelf = 5.0;
+                    if (storage.toLowerCase().includes('refrigerat')) baseShelf = 30.0;
+                    else if (storage.toLowerCase().includes('frozen')) baseShelf = 120.0;
+                    const isEdible = diffHours <= baseShelf;
+                    edibilityData = {
+                        is_edible: isEdible,
+                        status: isEdible ? "Edible" : "Not Edible",
+                        hours_elapsed: Math.round(diffHours * 10) / 10,
+                        shelf_life_hours: baseShelf,
+                        remaining_hours: Math.round((baseShelf - diffHours) * 10) / 10,
+                        reason: isEdible ? `Safe for consumption within ${baseShelf}h safe shelf life window.` : `Exceeded safe shelf life limit of ${baseShelf}h.`
+                    };
+                }
+                return edibilityData;
+            }
+
+            // 4. Create and push each food item separately into currentDonationItems
+            for (const it of itemsToProcess) {
+                const edibility = await evaluateItemEdibility(it.name);
+                const newItem = {
+                    name: it.name,
+                    category: 'Cooked Food',
+                    quantity: it.quantity,
+                    unit: it.unit,
+                    prepDate: prep,
+                    storageCondition: storage,
+                    edibility: edibility,
+                    photo: currentUploadedPhotoDataUrl || null,
+                    packages: 1
+                };
+                currentDonationItems.push(newItem);
+            }
+
+            btnAddItem.disabled = false;
+            btnAddItem.innerHTML = origBtnText;
+
+            renderFoodItems();
+            saveDraft();
+
+            // Clear all fields for the next item so user starts fresh
+            window.resetAddFoodItemForm();
+
+            // Collapse form and show "Add Another Food Item" button
+            const formContainer = document.getElementById('add-item-form-container');
+            const showBtn = document.getElementById('btn-show-add-form');
+            if (formContainer && showBtn) {
+                formContainer.style.display = 'none';
+                showBtn.style.display = 'flex';
             }
         });
     }
 });
 
+// Remove Food Item
+window.removeFoodItem = function(index) {
+    if (typeof currentDonationItems !== 'undefined' && currentDonationItems[index]) {
+        currentDonationItems.splice(index, 1);
+        renderFoodItems();
+        if (typeof saveDraft === 'function') saveDraft();
+    }
+};
+
 function renderFoodItems() {
     const mainList = document.getElementById('dynamic-food-list');
+    const addedHeader = document.getElementById('added-items-header');
+    const formContainer = document.getElementById('add-item-form-container');
+    const showBtn = document.getElementById('btn-show-add-form');
+
+    if (addedHeader) {
+        if (currentDonationItems.length > 0) {
+            addedHeader.style.display = 'block';
+            addedHeader.textContent = `Added Food Items (${currentDonationItems.length})`;
+        } else {
+            addedHeader.style.display = 'none';
+            if (formContainer) formContainer.style.display = 'block';
+            if (showBtn) showBtn.style.display = 'none';
+        }
+    }
+
     if (mainList) {
         mainList.innerHTML = '';
         currentDonationItems.forEach((item, index) => {
-            let prepFormatted = item.prepDate ? new Date(item.prepDate).toLocaleString() : 'N/A';
+            let prepFormatted = item.prepDate ? new Date(item.prepDate).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            }) : 'Not specified';
+
             let iconOrImage = item.photo 
                 ? `<img src="${item.photo}" style="width:100%; height:100%; object-fit:cover; border-radius:8px;" alt="${item.name}">`
-                : `<i class="fa-solid fa-bowl-food"></i>`;
+                : `<i class="fa-solid fa-bowl-food" style="font-size:22px; color:var(--dash-primary);"></i>`;
 
             mainList.innerHTML += `
-                <div class="food-item-row" style="display:flex; gap:16px; align-items:center; background:#fff; border:1px solid var(--dash-border); border-radius:12px; padding:16px; margin-bottom:12px;">
-                    <div style="width:64px; height:64px; border-radius:8px; background:var(--dash-primary-light); color:var(--dash-primary); display:flex; align-items:center; justify-content:center; font-size:24px;">
+                <div class="food-item-row" style="display:flex; gap:16px; align-items:center; background:#fff; border:1px solid var(--dash-border); border-radius:12px; padding:16px; margin-bottom:12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="width:68px; height:68px; border-radius:10px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; border:1px solid #e2e8f0;">
                         ${iconOrImage}
                     </div>
-                    <div style="flex:1;">
-                        <h4 style="margin:0; font-size:15px; font-weight:700;">${item.name}</h4>
-                        <div style="display:flex; gap:8px; margin:4px 0;">
-                            <span class="badge badge-green" style="font-size:11px;">${item.category}</span>
-                            <span class="badge badge-green" style="font-size:11px;">${item.type}</span>
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                            <h4 style="margin:0; font-size:16px; font-weight:700; color:#0f172a;">${item.name}</h4>
+                            <span style="background:#e0e7ff; color:#3730a3; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-robot"></i> YOLO AI
+                            </span>
+                            ${item.edibility ? `
+                                <span style="background:${item.edibility.is_edible ? '#dcfce7' : '#fee2e2'}; color:${item.edibility.is_edible ? '#15803d' : '#b91c1c'}; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid ${item.edibility.is_edible ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i>
+                                    ${item.edibility.is_edible ? (item.edibility.remaining_hours !== undefined ? `Edible (~${item.edibility.remaining_hours}h left)` : 'Edible') : 'Not Edible'}
+                                </span>
+                            ` : ''}
                         </div>
-                        <div style="font-size:13px; font-weight:600;">${item.quantity} ${item.unit} <span style="color:#64748b; font-weight:400;">• ${item.packages} packages</span></div>
+                        <div style="display:flex; gap:16px; font-size:13px; color:#475569; flex-wrap:wrap;">
+                            <div><strong style="color:#0f172a;">Quantity:</strong> ${item.quantity} ${item.unit}</div>
+                            <div><strong style="color:#0f172a;">Cooked Time:</strong> ${prepFormatted}</div>
+                            ${item.storageCondition ? `<div><strong style="color:#0f172a;">Storage:</strong> ${item.storageCondition}</div>` : ''}
+                        </div>
+                        ${item.edibility && item.edibility.reason ? `
+                            <div style="margin-top:8px; font-size:12px; line-height:1.4; color:#334155; background:#f8fafc; padding:8px 12px; border-radius:8px; border-left:3px solid ${item.edibility.is_edible ? '#16a34a' : '#ef4444'};">
+                                <span style="font-weight:600; color:${item.edibility.is_edible ? '#15803d' : '#b91c1c'};"><i class="fa-solid fa-microchip"></i> Ollama AI:</span> ${item.edibility.reason}
+                            </div>
+                        ` : ''}
                     </div>
+                    <button type="button" class="btn" onclick="removeFoodItem(${index})" title="Remove item" style="background:#fee2e2; color:#ef4444; border:none; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:all 0.2s ease;">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
                 </div>
             `;
         });
@@ -1047,32 +1406,41 @@ function renderFoodItems() {
     if (summaryList) {
         summaryList.innerHTML = '';
         let totalWeight = 0;
-        let totalPackages = 0;
         
         currentDonationItems.forEach(item => {
-            totalWeight += item.quantity;
-            totalPackages += item.packages;
+            totalWeight += Number(item.quantity || 0);
             
+            const edibleTag = item.edibility 
+                ? (item.edibility.is_edible 
+                    ? ` • <span style="color:#15803d; font-weight:700;">Edible</span>` 
+                    : ` • <span style="color:#b91c1c; font-weight:700;">Not Edible</span>`)
+                : '';
+
             summaryList.innerHTML += `
                 <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
-                    <div style="width:32px; height:32px; border-radius:6px; background:var(--dash-primary-light); color:var(--dash-primary); display:flex; align-items:center; justify-content:center; font-size:12px;">
-                        ${item.photo ? `<img src="${item.photo}" style="width:100%; height:100%; object-fit:cover; border-radius:6px;" alt="${item.name}">` : `<i class="fa-solid fa-bowl-food"></i>`}
+                    <div style="width:36px; height:36px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:12px; overflow:hidden; flex-shrink:0; border:1px solid #e2e8f0;">
+                        ${item.photo ? `<img src="${item.photo}" style="width:100%; height:100%; object-fit:cover; border-radius:6px;" alt="${item.name}">` : `<i class="fa-solid fa-bowl-food" style="color:var(--dash-primary);"></i>`}
                     </div>
-                    <div>
-                        <h5 style="margin:0; font-size:12px; font-weight:600;">${item.name}</h5>
-                        <p style="margin:0; font-size:11px; color:var(--dash-text-muted);">${item.quantity} ${item.unit} • ${item.packages} pkgs</p>
+                    <div style="flex:1; min-width:0;">
+                        <h5 style="margin:0; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.name}</h5>
+                        <p style="margin:0; font-size:11px; color:var(--dash-text-muted);">${item.quantity} ${item.unit}${item.storageCondition ? ` • ${item.storageCondition}` : ''}${edibleTag}</p>
                     </div>
                 </div>
             `;
         });
-          // Update summary totals
+        
+        // Update summary totals
         const weightEl = document.getElementById('summary-total-weight');
         const pkgEl = document.getElementById('summary-total-packages');
         const countEl = document.getElementById('summary-item-count');
         
-        if (weightEl) weightEl.textContent = `~${totalWeight} kg`; 
-        if (pkgEl) pkgEl.textContent = totalPackages;
+        if (weightEl) weightEl.textContent = `${totalWeight} items`; 
+        if (pkgEl) pkgEl.textContent = `${currentDonationItems.length}`;
         if (countEl) countEl.textContent = `${currentDonationItems.length} Items`;
+    }
+
+    if (typeof updateReviewStep === 'function') {
+        updateReviewStep();
     }
 }
 
@@ -1236,6 +1604,7 @@ function renderReportAndImpact(donations) {
 
 
 // DYNAMIC STEP 4 REVIEW DETAILS
+let lastAiSummaryHash = '';
 window.updateReviewStep = function() {
     const items = (typeof currentDonationItems !== 'undefined' && currentDonationItems) ? currentDonationItems : [];
     const totalItemsEl = document.getElementById('review-total-items');
@@ -1264,4 +1633,108 @@ window.updateReviewStep = function() {
     const name = document.getElementById('input-contact-name')?.value.trim() || (user && user.name) || '';
     const phone = document.getElementById('input-contact-phone')?.value.trim() || (user && user.phone) || '';
     if (contactEl) contactEl.textContent = (name || phone) ? `${name} (${phone})` : 'Not specified';
+
+    // Fetch Ollama AI Donation Summary if Step 4 is reached or visible
+    if (typeof window.fetchDonationAiSummary === 'function') {
+        window.fetchDonationAiSummary();
+    }
+};
+
+window.fetchDonationAiSummary = async function() {
+    const summaryCard = document.getElementById('review-ai-summary-card');
+    const badgeEl = document.getElementById('review-ai-status-badge');
+    const textEl = document.getElementById('review-ai-summary-text');
+    const adviceEl = document.getElementById('review-ai-handling-advice');
+
+    if (!summaryCard || !textEl) return;
+
+    const items = (typeof currentDonationItems !== 'undefined' && currentDonationItems) ? currentDonationItems : [];
+
+    if (items.length === 0) {
+        textEl.textContent = "No food items added yet. Please add food items in Step 1.";
+        if (adviceEl) adviceEl.textContent = "Shelf life and handling advice will appear once food items are added.";
+        if (badgeEl) {
+            badgeEl.className = 'badge';
+            badgeEl.style.background = '#f1f5f9';
+            badgeEl.style.color = '#64748b';
+            badgeEl.innerHTML = '<i class="fa-solid fa-circle-info"></i> No Items';
+        }
+        return;
+    }
+
+    // Hash check to avoid re-triggering Ollama if items haven't changed
+    const currentHash = JSON.stringify(items.map(i => ({
+        n: i.name,
+        q: i.quantity,
+        u: i.unit,
+        p: i.prepDate,
+        s: i.storageCondition,
+        e: i.edibility ? i.edibility.is_edible : null
+    })));
+
+    if (currentHash === lastAiSummaryHash) return;
+
+    // Show loading state
+    textEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="color:var(--dash-primary); margin-right:6px;"></i> Generating donation summary with Ollama AI...';
+    if (adviceEl) adviceEl.textContent = "Analyzing safe consumption shelf life and storage conditions...";
+    if (badgeEl) {
+        badgeEl.style.background = '#fef3c7';
+        badgeEl.style.color = '#b45309';
+        badgeEl.innerHTML = '<i class="fa-solid fa-gear fa-spin"></i> Analyzing...';
+    }
+
+    const candidateUrls = [
+        (typeof API_BASE !== 'undefined' && API_BASE) ? `${API_BASE}/ai/donation-summary` : null,
+        'http://127.0.0.1:5000/api/ai/donation-summary',
+        '/api/ai/donation-summary'
+    ].filter(Boolean);
+
+    let summaryData = null;
+    for (const url of candidateUrls) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: items })
+            });
+            if (res.ok) {
+                summaryData = await res.json();
+                if (summaryData && summaryData.success) break;
+            }
+        } catch (e) {}
+    }
+
+    lastAiSummaryHash = currentHash;
+
+    if (summaryData && summaryData.success) {
+        textEl.textContent = summaryData.summary_text;
+        if (adviceEl) adviceEl.textContent = summaryData.handling_advice || "Maintain safe temperature during transport and distribute promptly.";
+        
+        if (badgeEl) {
+            if (summaryData.all_edible) {
+                badgeEl.style.background = '#dcfce7';
+                badgeEl.style.color = '#15803d';
+                badgeEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${summaryData.summary_headline || 'All Items Edible'}`;
+                summaryCard.style.borderLeftColor = '#16a34a';
+            } else {
+                badgeEl.style.background = '#fee2e2';
+                badgeEl.style.color = '#b91c1c';
+                badgeEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${summaryData.summary_headline || 'Quality Notice'}`;
+                summaryCard.style.borderLeftColor = '#ef4444';
+            }
+        }
+    } else {
+        // Fallback
+        const allEdible = items.every(i => !i.edibility || i.edibility.is_edible);
+        textEl.textContent = allEdible
+            ? `Donation contains ${items.length} item(s) prepared within safe shelf life guidelines. Ready for distribution.`
+            : `Donation contains ${items.length} item(s); some items have exceeded safe shelf life. Please review item list.`;
+        if (adviceEl) adviceEl.textContent = "Maintain appropriate food storage temperatures during pickup and transit.";
+        if (badgeEl) {
+            badgeEl.style.background = allEdible ? '#dcfce7' : '#fee2e2';
+            badgeEl.style.color = allEdible ? '#15803d' : '#b91c1c';
+            badgeEl.innerHTML = allEdible ? '<i class="fa-solid fa-circle-check"></i> Quality Verified' : '<i class="fa-solid fa-triangle-exclamation"></i> Quality Notice';
+            summaryCard.style.borderLeftColor = allEdible ? '#16a34a' : '#ef4444';
+        }
+    }
 };
