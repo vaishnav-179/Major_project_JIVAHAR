@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="css/dashboard.css">
 
     <style>
         /* Base Structural Styles from previous step */
@@ -1227,81 +1227,82 @@
                         <!-- Top Controls: Search, Status, Date Range, Filter -->
                         <div
                             style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
-                            <div style="position:relative; flex-grow:1; max-width:280px;">
+                            <div style="position:relative; flex-grow:1; max-width:320px;">
                                 <i class="fa-solid fa-search"
                                     style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8;"></i>
-                                <input type="text" class="form-control" placeholder="Search by food item, NGO, or ID..."
+                                <input type="text" id="donation-search-input" class="form-control" placeholder="Search by food item, receiver, or ID..."
                                     style="padding-left:36px; height:40px; font-size:13px; border-radius:6px;">
                             </div>
 
-                            <div style="display:flex; gap:12px; align-items:center;">
+                            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
                                 <div style="display:flex; flex-direction:column; gap:4px;">
                                     <span
                                         style="font-size:11px; color:var(--dash-text-muted); font-weight:600; padding-left:4px;">Status</span>
-                                    <select class="form-control"
+                                    <select id="donation-status-filter-select" class="form-control"
                                         style="height:40px; font-size:13px; min-width:140px; border-radius:6px; background:#fff;">
-                                        <option>All Status</option>
-                                        <option>Delivered</option>
-                                        <option>Picked Up</option>
-                                        <option>Cancelled</option>
+                                        <option value="all">All Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="picked-up">Picked Up</option>
+                                        <option value="delivered">Delivered</option>
+                                        <option value="cancelled">Cancelled</option>
+                                        <option value="recycled">Bio-Recycled / Manufacturer</option>
                                     </select>
                                 </div>
 
                                 <div style="display:flex; flex-direction:column; gap:4px;">
                                     <span
-                                        style="font-size:11px; color:var(--dash-text-muted); font-weight:600; padding-left:4px;">Date
-                                        Range</span>
-                                    <div style="position:relative;">
-                                        <input type="text" class="form-control" value="May 1, 2024 - May 27, 2024"
-                                            style="height:40px; font-size:13px; min-width:220px; border-radius:6px; background:#fff; padding-right:36px;">
-                                        <i class="fa-regular fa-calendar"
-                                            style="position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#94a3b8;"></i>
-                                    </div>
+                                        style="font-size:11px; color:var(--dash-text-muted); font-weight:600; padding-left:4px;">Date Range</span>
+                                    <select id="donation-date-filter-select" class="form-control"
+                                        style="height:40px; font-size:13px; min-width:160px; border-radius:6px; background:#fff;">
+                                        <option value="all">All Dates</option>
+                                        <option value="today">Today</option>
+                                        <option value="week">Past 7 Days</option>
+                                        <option value="month">This Month</option>
+                                    </select>
                                 </div>
 
                                 <div style="display:flex; flex-direction:column; gap:4px; align-self:flex-end;">
-                                    <button class="btn btn-secondary"
+                                    <button id="donation-reset-filters-btn" class="btn btn-secondary"
+                                        title="Reset all filters"
                                         style="height:40px; font-size:13px; background:#fff; border:1px solid var(--dash-border);"><i
-                                            class="fa-solid fa-filter" style="margin-right:6px;"></i> Filters</button>
+                                            class="fa-solid fa-rotate-right" style="margin-right:6px;"></i> Reset</button>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Summary Badges/Tabs -->
                         <div id="donation-history-tabs"
-                            style="display:flex; gap:24px; align-items:center; border-bottom:1px solid var(--dash-border); padding-bottom:16px; margin-bottom:24px;">
+                            style="display:flex; gap:20px; align-items:center; border-bottom:1px solid var(--dash-border); padding-bottom:16px; margin-bottom:24px; overflow-x:auto;">
                             <div class="history-tab active" data-filter="all"
-                                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
                                 <span class="tab-label"
-                                    style="font-weight:700; color:var(--dash-primary); font-size:14px; transition:color 0.2s;">All
-                                    Donations</span>
+                                    style="font-weight:700; color:var(--dash-primary); font-size:14px; transition:color 0.2s;">All Donations</span>
                                 <span id="count-all-donations"
                                     style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
                             </div>
-                            <div class="history-tab" data-filter="completed"
-                                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <div class="history-tab" data-filter="pending"
+                                style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
                                 <span class="tab-label"
-                                    style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Completed</span>
-                                <span id="count-completed-donations"
-                                    style="background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+                                    style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Pending</span>
+                                <span id="count-pending-donations"
+                                    style="background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
                             </div>
                             <div class="history-tab" data-filter="picked-up"
-                                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
                                 <span class="tab-label"
-                                    style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Picked
-                                    Up</span>
+                                    style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Picked Up</span>
                                 <span id="count-picked-up-donations"
                                     style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
                             </div>
                             <div class="history-tab" data-filter="delivered"
-                                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
                                 <span class="tab-label"
                                     style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Delivered</span>
                                 <span id="count-delivered-donations"
                                     style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
                             </div>
                             <div class="history-tab" data-filter="cancelled"
-                                style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
                                 <span class="tab-label"
                                     style="font-weight:500; color:var(--dash-text-muted); font-size:14px; transition:color 0.2s;">Cancelled</span>
                                 <span id="count-cancelled-donations"
@@ -1316,7 +1317,7 @@
                                     <tr style="border-bottom:1px solid var(--dash-border);">
                                         <th
                                             style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">
-                                            Donation</th>
+                                            Food Item</th>
                                         <th
                                             style="padding:12px 8px; font-size:11px; font-weight:700; color:var(--dash-text-muted); text-transform:uppercase;">
                                             Donation ID</th>
@@ -1344,104 +1345,23 @@
 
                         <!-- Pagination -->
                         <div
-                            style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--dash-border);">
+                            style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--dash-border); flex-wrap:wrap; gap:12px;">
                             <span id="donations-pagination-info"
                                 style="font-size:13px; color:var(--dash-text-muted);">Showing 0 of 0 donations</span>
 
-                            <div style="display:flex; gap:4px;">
-                                <button class="btn btn-secondary page-btn"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; color:var(--dash-text-muted);"><i
-                                        class="fa-solid fa-chevron-left"></i></button>
-                                <button class="btn btn-primary page-btn page-number active"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:700;">1</button>
-                                <button class="btn btn-secondary page-btn page-number"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">2</button>
-                                <button class="btn btn-secondary page-btn page-number"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">3</button>
-                                <button class="btn btn-secondary page-btn page-number"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">4</button>
-                                <span
-                                    style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; color:var(--dash-text-muted);">...</span>
-                                <button class="btn btn-secondary page-btn page-number"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; font-weight:700;">7</button>
-                                <button class="btn btn-secondary page-btn"
-                                    style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; color:var(--dash-text-muted);"><i
-                                        class="fa-solid fa-chevron-right"></i></button>
+                            <div id="donations-pagination-controls" style="display:flex; gap:4px; align-items:center;">
                             </div>
 
-                            <select class="form-control"
+                            <select id="donations-per-page-select" class="form-control"
                                 style="width:auto; font-size:12px; height:32px; padding:0 24px 0 12px; background:#fff;">
-                                <option>10 / page</option>
-                                <option>20 / page</option>
-                                <option>50 / page</option>
+                                <option value="5">5 / page</option>
+                                <option value="10" selected>10 / page</option>
+                                <option value="20">20 / page</option>
+                                <option value="50">50 / page</option>
                             </select>
                         </div>
 
                     </div>
-
-                    <!-- Tab Logic -->
-                    <script>
-                        document.addEventListener('DOMContentLoaded', () => {
-                            const tabs = document.querySelectorAll('.history-tab');
-                            const rows = document.querySelectorAll('.history-row');
-
-                            tabs.forEach(tab => {
-                                tab.addEventListener('click', () => {
-                                    // Reset all tabs
-                                    tabs.forEach(t => {
-                                        t.classList.remove('active');
-                                        const label = t.querySelector('.tab-label');
-                                        label.style.fontWeight = '500';
-                                        label.style.color = 'var(--dash-text-muted)';
-                                    });
-
-                                    // Set active tab
-                                    tab.classList.add('active');
-                                    const activeLabel = tab.querySelector('.tab-label');
-                                    activeLabel.style.fontWeight = '700';
-                                    activeLabel.style.color = 'var(--dash-primary)';
-
-                                    // Filter rows
-                                    const filter = tab.getAttribute('data-filter');
-                                    rows.forEach(row => {
-                                        if (filter === 'all') {
-                                            row.style.display = 'table-row';
-                                        } else if (filter === 'completed') {
-                                            if (row.getAttribute('data-completed') === 'true') {
-                                                row.style.display = 'table-row';
-                                            } else {
-                                                row.style.display = 'none';
-                                            }
-                                        } else {
-                                            if (row.getAttribute('data-status') === filter) {
-                                                row.style.display = 'table-row';
-                                            } else {
-                                                row.style.display = 'none';
-                                            }
-                                        }
-                                    });
-                                });
-                            });
-
-                            // Pagination click logic
-                            const pageNumbers = document.querySelectorAll('.page-number');
-                            pageNumbers.forEach(page => {
-                                page.addEventListener('click', () => {
-                                    pageNumbers.forEach(p => {
-                                        p.classList.remove('btn-primary', 'active');
-                                        p.classList.add('btn-secondary');
-                                        p.style.background = '#fff';
-                                        p.style.border = '1px solid var(--dash-border)';
-                                    });
-                                    page.classList.remove('btn-secondary');
-                                    page.classList.add('btn-primary', 'active');
-                                    page.style.background = '';
-                                    page.style.border = 'none';
-                                });
-                            });
-
-                        });
-                    </script>
 
                     <!-- RIGHT COLUMN: Sidebar Widgets -->
                     <div style="display:flex; flex-direction:column; gap:24px;">
@@ -1451,10 +1371,10 @@
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
                                 <h4 style="margin:0; font-size:15px; font-weight:700;">Donation Summary</h4>
-                                <select class="form-control"
+                                <select id="sidebar-summary-period-select" class="form-control"
                                     style="width:auto; font-size:12px; height:28px; padding:0 24px 0 8px;">
-                                    <option>This Month</option>
-                                    <option>All Time</option>
+                                    <option value="month">This Month</option>
+                                    <option value="all">All Time</option>
                                 </select>
                             </div>
 
@@ -1468,7 +1388,6 @@
                                             Donations</p>
                                         <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);"
                                             id="sidebar-total-donations">0</p>
-
                                     </div>
                                 </div>
                                 <div style="display:flex; gap:16px; align-items:center;">
@@ -1481,7 +1400,6 @@
                                         <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);"
                                             id="sidebar-total-food">0 <span
                                                 style="font-size:13px; font-weight:500;">kg</span></p>
-
                                     </div>
                                 </div>
                                 <div style="display:flex; gap:16px; align-items:center;">
@@ -1489,11 +1407,9 @@
                                         style="width:40px; height:40px; border-radius:50%; background:#ffedd5; color:#c2410c; display:flex; align-items:center; justify-content:center; font-size:16px;">
                                         <i class="fa-solid fa-users"></i></div>
                                     <div>
-                                        <p style="margin:0; font-size:12px; color:var(--dash-text-muted);">People Fed
-                                        </p>
+                                        <p style="margin:0; font-size:12px; color:var(--dash-text-muted);">People Fed</p>
                                         <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);"
                                             id="sidebar-people-fed">0</p>
-
                                     </div>
                                 </div>
                                 <div style="display:flex; gap:16px; align-items:center;">
@@ -1505,13 +1421,12 @@
                                         <p style="margin:2px 0; font-size:18px; font-weight:800; color:var(--dash-text-main);"
                                             id="sidebar-total-co2">0 <span
                                                 style="font-size:13px; font-weight:500;">kg</span></p>
-
                                     </div>
                                 </div>
                             </div>
 
-                            <button class="btn btn-secondary"
-                                style="width:100%; margin-top:24px; border:1px solid #10b981; color:#10b981; font-weight:600; background:#fff;">View
+                            <button id="btn-sidebar-view-impact-report" class="btn btn-secondary"
+                                style="width:100%; margin-top:24px; border:1px solid #10b981; color:#10b981; font-weight:600; background:#fff; cursor:pointer;">View
                                 Impact Report</button>
                         </div>
 
@@ -1520,38 +1435,38 @@
                             <div
                                 style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                                 <h4 style="margin:0; font-size:15px; font-weight:700;">Top NGO Partners</h4>
-                                <a href="#"
-                                    style="font-size:12px; color:var(--dash-primary); text-decoration:none; font-weight:600;">View
-                                    All</a>
+                                <a href="#" id="btn-sidebar-ngo-view-all"
+                                    style="font-size:12px; color:var(--dash-primary); text-decoration:none; font-weight:600;">View All</a>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:16px;" id="top-ngo-list">
                                 <p style="font-size:12px; color:#666;">No data available.</p>
                             </div>
                         </div>
 
-
                         <!-- Download Center Widget -->
                         <div class="dash-card">
                             <h4 style="margin:0 0 16px 0; font-size:15px; font-weight:700;">Download Center</h4>
                             <div style="display:flex; flex-direction:column; gap:12px;">
-                                <div
+                                <div id="btn-download-history-pdf"
+                                    title="Print or Save Donation History as PDF"
                                     style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--dash-border); cursor:pointer;">
                                     <div style="display:flex; align-items:center; gap:8px;">
-                                        <i class="fa-regular fa-file-pdf" style="color:var(--dash-text-muted);"></i>
+                                        <i class="fa-regular fa-file-pdf" style="color:#ef4444; font-size:15px;"></i>
                                         <span
                                             style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Donation
-                                            History (PDF)</span>
+                                            History (PDF / Print)</span>
                                     </div>
                                     <i class="fa-solid fa-download"
                                         style="color:var(--dash-text-muted); font-size:12px;"></i>
                                 </div>
-                                <div
+                                <div id="btn-download-history-excel"
+                                    title="Export Donation History to CSV / Excel"
                                     style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; cursor:pointer;">
                                     <div style="display:flex; align-items:center; gap:8px;">
-                                        <i class="fa-regular fa-file-excel" style="color:var(--dash-text-muted);"></i>
+                                        <i class="fa-regular fa-file-excel" style="color:#10b981; font-size:15px;"></i>
                                         <span
                                             style="font-size:13px; color:var(--dash-text-main); font-weight:500;">Donation
-                                            History (Excel)</span>
+                                            History (Excel / CSV)</span>
                                     </div>
                                     <i class="fa-solid fa-download"
                                         style="color:var(--dash-text-muted); font-size:12px;"></i>
@@ -1564,8 +1479,8 @@
                             <h4 style="margin:0 0 8px 0; font-size:14px; font-weight:700;">Need Help?</h4>
                             <p style="margin:0 0 16px 0; font-size:12px; color:var(--dash-text-muted);">Facing any issue
                                 with your donations?</p>
-                            <button class="btn btn-secondary"
-                                style="width:100%; border:1px solid var(--dash-primary); color:var(--dash-primary); background:#fff; font-size:13px; font-weight:600;"><i
+                            <button id="btn-sidebar-contact-support" class="btn btn-secondary"
+                                style="width:100%; border:1px solid var(--dash-primary); color:var(--dash-primary); background:#fff; font-size:13px; font-weight:600; cursor:pointer;"><i
                                     class="fa-solid fa-headset" style="margin-right:6px;"></i> Contact Support</button>
                         </div>
 
@@ -2610,6 +2525,11 @@
                         // Trigger map resize if Dashboard is selected
                         if (tabId === 'tab-dashboard' && typeof map !== 'undefined') {
                             setTimeout(() => { map.invalidateSize(); }, 100);
+                        }
+
+                        // Auto-refresh donations if My Donations is selected
+                        if (tabId === 'tab-my-donations' && typeof window.fetchUserDonations === 'function') {
+                            window.fetchUserDonations();
                         }
                     });
                 }

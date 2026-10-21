@@ -1,31 +1,13 @@
-import pymongo
+# Jivahar Database Seeder Entrypoint
 import os
-from datetime import datetime, timedelta
-from bson.objectid import ObjectId
-import random
+import sys
 
-MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-client = pymongo.MongoClient(MONGO_URI)
-db = client['jivahar']
+scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
+seed_file = os.path.join(scripts_dir, 'seed_db.py')
 
-donor_id = ObjectId("66ed84cd3dc3a0ec277f0a92")
-
-# Ensure default admin account exists
-from werkzeug.security import generate_password_hash
-if not db.users.find_one({"email": "admin@jivahar.com"}):
-    db.users.insert_one({
-        "name": "Platform Administrator",
-        "email": "admin@jivahar.com",
-        "password": generate_password_hash("admin123"),
-        "role": "admin",
-        "approved": True,
-        "phone": "9876543210"
-    })
-    print("Admin user (admin@jivahar.com) created successfully!")
-else:
-    print("Admin user already exists.")
-
-# Clean up any legacy mock donations
-db.donations.delete_many({"donor_id": donor_id})
-print("Database initialized (all mock donations removed)!")
-
+if __name__ == '__main__':
+    if os.path.exists(seed_file):
+        with open(seed_file, 'r', encoding='utf-8') as f:
+            exec(f.read())
+    else:
+        print("Error: scripts/seed_db.py not found.")

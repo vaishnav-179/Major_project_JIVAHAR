@@ -441,6 +441,83 @@ function ensureFixedDonationCoordinates(donation) {
 // ============================================
 // DATA FETCHING & RENDERING
 // ============================================
+// Web Audio API Synthesizer for Real-Time Notification Chimes
+function playNotificationChime() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880, now + 0.12); // A5
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.6);
+    } catch(e) {}
+}
+
+let knownIncomingIds = new Set();
+let isInitialNgoLoad = true;
+
+// Helper to check if donation is currently notified to this NGO in the nearest-first cascade
+function isDonationNotifiedToNgo(d) {
+    if (!d || d.status !== 'Pending') return false;
+    if (isDonationRejectedByNgo(d)) return false;
+    if (!currentNgoUser) return false;
+
+    const myId = String(currentNgoUser._id || currentNgoUser.id || '');
+    const myEmail = String(currentNgoUser.email || '').toLowerCase().trim();
+    const myName = String(currentNgoUser.name || '').toLowerCase().trim();
+
+    const cascade = d.notification_cascade || {};
+    const currentlyNotified = cascade.currently_notified;
+
+    if (!Array.isArray(currentlyNotified) || currentlyNotified.length === 0) {
+        return false;
+    }
+
+    return currentlyNotified.some(n => {
+        if (!n) return false;
+        if (typeof n === 'string') return n === myId;
+        const nId = String(n.id || n._id || '');
+        const nEmail = String(n.email || '').toLowerCase().trim();
+        const nName = String(n.name || '').toLowerCase().trim();
+        return (nId && nId === myId) || (nEmail && nEmail === myEmail) || (nName && nName === myName);
+    });
+}
+
+// Helper to check if donation was accepted / assigned to this NGO
+function isDonationAssignedToNgo(d) {
+    if (!d || !currentNgoUser) return false;
+    if (isDonationRejectedByNgo(d)) return false;
+    if (!['Accepted', 'Picked Up', 'Delivered'].includes(d.status)) return false;
+
+    const myId = String(currentNgoUser._id || currentNgoUser.id || '');
+    const myEmail = String(currentNgoUser.email || '').toLowerCase().trim();
+    const myName = String(currentNgoUser.name || '').toLowerCase().trim();
+
+    const assigned = d.assigned_ngo || {};
+    const aId = String(assigned.id || assigned._id || '');
+    const aEmail = String(assigned.email || '').toLowerCase().trim();
+    const aName = String(assigned.name || '').toLowerCase().trim();
+
+    if ((aId && aId === myId) || (aEmail && aEmail === myEmail) || (aName && aName === myName)) {
+        return true;
+    }
+    if (!aId && !aName) {
+        return true;
+    }
+    return false;
+}
 // Local cache of rejected donation IDs for current NGO
 let savedNgoRejected = [];
 try {
@@ -503,15 +580,97 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
 function renderIncomingNotifications(donations) {
     const listContainer = document.getElementById('incomingNotificationsList');
     const badgeEl = document.getElementById('incomingBadgeCount');
+    const dropdownList = document.getElementById('incomingDropdownList');
+    const dropdownSummary = document.getElementById('incomingDropdownSummary');
+    const notifBtn = document.getElementById('notificationBtn');
+
+    // Filter strictly for donations currently notified to this NGO as nearest / cascaded next-nearest
+    const pendingIncoming = donations.filter(d => isDonationNotifiedToNgo(d));
+
+    // Audio chime & toast for new incoming donation alert
+    let hasNewAlert = false;
+    let newlyArrivedDonation = null;
+    pendingIncoming.forEach(d => {
+        const did = String(d._id);
+        if (!knownIncomingIds.has(did)) {
+            if (!isInitialNgoLoad) {
+                hasNewAlert = true;
+                newlyArrivedDonation = d;
+            }
+        }
+    });
+
+    knownIncomingIds = new Set(pendingIncoming.map(d => String(d._id)));
+
+    if (hasNewAlert && newlyArrivedDonation) {
+        playNotificationChime();
+        const firstItemName = newlyArrivedDonation.items?.[0]?.name || 'Fresh Food';
+        showToast(`🔔 New Food Alert: ${firstItemName} waiting for your decision!`);
+    }
+    isInitialNgoLoad = false;
+
+    // Update Topbar Bell Badge
+    const count = pendingIncoming.length;
+    if (badgeEl) {
+        badgeEl.textContent = count;
+        if (count > 0) {
+            badgeEl.style.display = 'flex';
+            if (notifBtn) notifBtn.classList.add('has-alerts');
+        } else {
+            badgeEl.style.display = 'none';
+            if (notifBtn) notifBtn.classList.remove('has-alerts');
+        }
+    }
+    if (dropdownSummary) {
+        dropdownSummary.textContent = `${count} New`;
+    }
+
+    // Populate Topbar Dropdown List
+    if (dropdownList) {
+        if (count === 0) {
+            dropdownList.innerHTML = `<div style="text-align:center; padding:18px; color:#94A3B8; font-size:12px;">No incoming food offers. All caught up!</div>`;
+        } else {
+            dropdownList.innerHTML = pendingIncoming.map(donation => {
+                const firstItem = (donation.items && donation.items.length > 0) ? donation.items[0] : { name: "Food Package" };
+                let totalQty = 0;
+                let qtyUnit = 'kg';
+                if (donation.items) {
+                    donation.items.forEach(i => totalQty += Number(i.quantity || 0));
+                    qtyUnit = donation.items[0]?.unit || 'kg';
+                }
+                const donorLat = donation.pickup_details?.lat || 15.1500;
+                const donorLng = donation.pickup_details?.lng || 76.9050;
+                const ngoLat = currentNgoUser?.lat || 15.1511;
+                const ngoLng = currentNgoUser?.lng || 76.9062;
+                const distKm = getDistanceKm(ngoLat, ngoLng, donorLat, donorLng).toFixed(1);
+                const addr = donation.pickup_details?.address || 'Pickup Point';
+
+                return `
+                    <div class="notif-dropdown-card">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong style="font-size:12.5px; color:#0F172A;">${firstItem.name}</strong>
+                            <span style="font-size:10px; font-weight:700; color:#15803D; background:#DCFCE7; padding:2px 6px; border-radius:4px;">📍 ${distKm} km</span>
+                        </div>
+                        <div style="font-size:11px; color:#64748B;">📦 ${totalQty} ${qtyUnit} • 📍 ${addr}</div>
+                        <div style="display:flex; gap:6px; margin-top:4px;">
+                            <button onclick="handleAcceptDonation('${donation._id}')" style="flex:1; padding:5px 8px; font-size:11px; background:#15803D; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer;">
+                                <i class="fa-solid fa-check"></i> Accept
+                            </button>
+                            <button onclick="openDecisionRejectModal('${donation._id}', '${firstItem.name}', '${totalQty} ${qtyUnit}', '${addr}', '${distKm}', '${donation.pickup_details?.contact_name || 'Donor'}')" style="padding:5px 8px; font-size:11px; background:#F1F5F9; color:#DC2626; border:1px solid #FECACA; border-radius:6px; font-weight:700; cursor:pointer;">
+                                <i class="fa-solid fa-xmark"></i> Pass
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Populate Dashboard Urgent Section
     if (!listContainer) return;
 
-    // Filter donations where status is Pending and not passed/rejected by this NGO
-    const pendingIncoming = donations.filter(d => d.status === 'Pending' && !isDonationRejectedByNgo(d));
-
-    if (badgeEl) badgeEl.textContent = `${pendingIncoming.length} Pending`;
-
-    if (pendingIncoming.length === 0) {
-        listContainer.innerHTML = `<div style="text-align:center; padding:16px; color:#64748B; font-size:13px;">No pending incoming donation alerts at the moment. All caught up!</div>`;
+    if (count === 0) {
+        listContainer.innerHTML = `<div style="text-align:center; padding:16px; color:#64748B; font-size:13px;"><i class="fa-solid fa-circle-check" style="color:#10B981; margin-right:6px;"></i> No pending incoming donation alerts at the moment. All caught up!</div>`;
         return;
     }
 
@@ -525,16 +684,17 @@ function renderIncomingNotifications(donations) {
             qtyUnit = donation.items[0]?.unit || 'kg';
         }
 
-        const donorLat = donation.pickup_details?.lat || 12.9716;
-        const donorLng = donation.pickup_details?.lng || 77.5946;
-        const ngoLat = currentNgoUser?.lat || 12.9784;
-        const ngoLng = currentNgoUser?.lng || 77.6408;
-
+        const donorLat = donation.pickup_details?.lat || 15.1500;
+        const donorLng = donation.pickup_details?.lng || 76.9050;
+        const ngoLat = currentNgoUser?.lat || 15.1511;
+        const ngoLng = currentNgoUser?.lng || 76.9062;
         const distKm = getDistanceKm(ngoLat, ngoLng, donorLat, donorLng).toFixed(1);
+        const addr = donation.pickup_details?.address || 'Local Donor Address';
+        const donorName = donation.pickup_details?.contact_name || 'Verified Donor';
 
         const cascade = donation.notification_cascade || {};
         const tier = cascade.active_tier || 1;
-        const radius = cascade.active_radius || (tier === 1 ? '15 km' : '25 km');
+        const radius = cascade.active_radius || `${distKm} km`;
 
         return `
             <div class="incoming-card">
@@ -544,16 +704,16 @@ function renderIncomingNotifications(donations) {
                     </div>
                     <div class="incoming-info">
                         <h4>${firstItem.name} ${totalItems > 1 ? `+${totalItems-1} more` : ''} (${totalQty} ${qtyUnit})</h4>
-                        <p>📍 Pickup Address: <strong>${donation.pickup_details?.address || 'Local Donor Address'}</strong></p>
+                        <p>📍 Pickup Address: <strong>${addr}</strong> • Donor: <strong>${donorName}</strong></p>
                         <div class="incoming-pills">
-                            <span class="tag-pill" style="background:#DCFCE7; color:#166534; padding:2px 8px; border-radius:4px; font-weight:700;">📍 ${distKm} km away</span>
-                            <span class="tag-pill" style="background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px; font-weight:700;">⚡ Tier ${tier} (${radius})</span>
-                            <span class="tag-pill" style="background:#FEF3C7; color:#B45309; padding:2px 8px; border-radius:4px; font-weight:700;">⏱️ Priority Notification</span>
+                            <span class="tag-pill" style="background:#DCFCE7; color:#166534; padding:2px 8px; border-radius:4px; font-weight:700;">📍 ${distKm} km away (Nearest NGO)</span>
+                            <span class="tag-pill" style="background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px; font-weight:700;">⚡ Tier ${tier} Priority</span>
+                            <span class="tag-pill" style="background:#FEF3C7; color:#B45309; padding:2px 8px; border-radius:4px; font-weight:700;">⏱️ Immediate Dispatch</span>
                         </div>
                     </div>
                 </div>
                 <div style="display:flex; gap:10px; flex-shrink:0;">
-                    <button class="btn-decision-reject" onclick="openDecisionRejectModal('${donation._id}', '${firstItem.name}', '${totalQty} ${qtyUnit}', '${donation.pickup_details?.address || 'Donor Address'}')"><i class="fa-solid fa-xmark"></i> Pass / Reject</button>
+                    <button class="btn-decision-reject" onclick="openDecisionRejectModal('${donation._id}', '${firstItem.name}', '${totalQty} ${qtyUnit}', '${addr}', '${distKm}', '${donorName}')"><i class="fa-solid fa-xmark"></i> Pass / Reject</button>
                     <button class="btn-decision-accept" onclick="handleAcceptDonation('${donation._id}')"><i class="fa-solid fa-check"></i> Accept Donation</button>
                 </div>
             </div>
@@ -566,7 +726,8 @@ function renderAvailableDonationsList(donations) {
     const streamContainer = document.getElementById('fullDonationsList');
     const dashboardContainer = document.querySelector('.donations-list');
 
-    const available = donations.filter(d => (d.status === 'Pending' || d.status === 'Accepted') && !isDonationRejectedByNgo(d));
+    // Available offers for this NGO: either notified (Pending) or claimed by this NGO
+    const available = donations.filter(d => (isDonationNotifiedToNgo(d) || isDonationAssignedToNgo(d)) && !isDonationRejectedByNgo(d));
 
     const renderCardHtml = (donation) => {
         const firstItem = (donation.items && donation.items.length > 0) ? donation.items[0] : { name: "Food Package", category: "Cooked" };
@@ -587,17 +748,29 @@ function renderAvailableDonationsList(donations) {
             imgUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=300&auto=format&fit=crop&q=80";
         }
 
-        const donorLat = donation.pickup_details?.lat || 12.9716;
-        const donorLng = donation.pickup_details?.lng || 77.5946;
-        const ngoLat = currentNgoUser?.lat || 12.9784;
-        const ngoLng = currentNgoUser?.lng || 77.6408;
-
+        const donorLat = donation.pickup_details?.lat || 15.1500;
+        const donorLng = donation.pickup_details?.lng || 76.9050;
+        const ngoLat = currentNgoUser?.lat || 15.1511;
+        const ngoLng = currentNgoUser?.lng || 76.9062;
         const distKm = getDistanceKm(ngoLat, ngoLng, donorLat, donorLng).toFixed(1);
+        const addr = donation.pickup_details?.address || 'Ballari Service Location';
+        const donorName = donation.pickup_details?.contact_name || 'Verified Donor';
 
-        const isAccepted = donation.status === 'Accepted';
-        const buttonHtml = isAccepted 
-            ? `<button class="btn-request-pickup" style="background:#0284C7; cursor:default;"><i class="fa-solid fa-circle-check"></i> Accepted</button>`
-            : `<button class="btn-request-pickup" onclick="handleAcceptDonation('${donation._id}')">Accept Pickup</button>`;
+        let buttonHtml = '';
+        if (donation.status === 'Pending') {
+            buttonHtml = `
+                <div style="display:flex; gap:6px;">
+                    <button class="btn-request-pickup" onclick="handleAcceptDonation('${donation._id}')"><i class="fa-solid fa-check"></i> Accept</button>
+                    <button class="btn-request-pickup" style="background:#F1F5F9; color:#DC2626; border:1px solid #FECACA;" onclick="openDecisionRejectModal('${donation._id}', '${firstItem.name}', '${totalQty} ${qtyUnit}', '${addr}', '${distKm}', '${donorName}')"><i class="fa-solid fa-xmark"></i> Pass</button>
+                </div>
+            `;
+        } else if (donation.status === 'Accepted') {
+            buttonHtml = `<button class="btn-request-pickup" style="background:#0284C7; cursor:default;"><i class="fa-solid fa-circle-check"></i> Claimed (Accepted)</button>`;
+        } else if (donation.status === 'Picked Up') {
+            buttonHtml = `<button class="btn-request-pickup" style="background:#D97706; cursor:default;"><i class="fa-solid fa-truck"></i> Picked Up</button>`;
+        } else {
+            buttonHtml = `<button class="btn-request-pickup" style="background:#15803D; cursor:default;"><i class="fa-solid fa-circle-check"></i> Delivered</button>`;
+        }
 
         return `
             <div class="donation-item-card" data-category="${firstItem.category?.toLowerCase() || 'veg'}">
@@ -605,16 +778,16 @@ function renderAvailableDonationsList(donations) {
                     <img src="${imgUrl}" alt="${firstItem.name}" class="donation-img">
                     <div class="donation-meta">
                         <h4>${firstItem.name}</h4>
-                        <p>${firstItem.category || 'Food Item'} • Contact: ${donation.pickup_details?.contact_name || 'Verified Donor'}</p>
+                        <p>${firstItem.category || 'Food Item'} • Contact: ${donorName}</p>
                         <div class="donation-location">
-                            <i class="fa-solid fa-location-dot" style="color: #15803D;"></i> ${donation.pickup_details?.address || 'Ballari Service Location'}
+                            <i class="fa-solid fa-location-dot" style="color: #15803D;"></i> ${addr}
                         </div>
                     </div>
                 </div>
                 <div class="donation-right">
                     <div class="donation-qty">${totalQty} ${qtyUnit}</div>
                     <div class="donation-pills">
-                        <span class="tag-pill tag-time" style="color: #D97706;"><i class="fa-regular fa-clock"></i> Available Now</span>
+                        <span class="tag-pill tag-time" style="color: #D97706;"><i class="fa-regular fa-clock"></i> ${donation.status}</span>
                         <span class="tag-pill tag-dist"><i class="fa-solid fa-route"></i> ${distKm} km</span>
                     </div>
                     ${buttonHtml}
@@ -634,6 +807,8 @@ function renderAvailableDonationsList(donations) {
     if (dashboardContainer) {
         if (available.length > 0) {
             dashboardContainer.innerHTML = available.slice(0, 4).map(renderCardHtml).join('');
+        } else {
+            dashboardContainer.innerHTML = `<p style="text-align:center; padding:16px; color:#94A3B8;">No active donations near your center.</p>`;
         }
     }
 
@@ -707,8 +882,9 @@ function updateNgoMapMarkers(donations) {
     addCenterAndCirclesToMap(ngoMapLayers);
     addCenterAndCirclesToMap(ngoDonationsMapLayers);
 
-    // 3. Render Dynamic Donor Specific Pickup Location Markers
-    donations.forEach(don => {
+    // 3. Render Dynamic Donor Specific Pickup Location Markers (Notified to this NGO or Claimed by this NGO)
+    const mapDonations = donations.filter(don => isDonationNotifiedToNgo(don) || isDonationAssignedToNgo(don));
+    mapDonations.forEach(don => {
         ensureFixedDonationCoordinates(don);
         const donLat = don.pickup_location?.latitude || don.pickup_details?.lat;
         const donLng = don.pickup_location?.longitude || don.pickup_details?.lng;
@@ -924,8 +1100,8 @@ function updateNgoMetrics(donations) {
     const uniqueDonorsSet = new Set();
 
     donations.forEach(d => {
-        if (d.status === 'Pending') totalAvailable++;
-        if (d.status === 'Accepted' || d.status === 'Picked Up' || d.status === 'Delivered') {
+        if (isDonationNotifiedToNgo(d)) totalAvailable++;
+        if (isDonationAssignedToNgo(d)) {
             totalAccepted++;
             if (d.items) {
                 d.items.forEach(item => totalKg += Number(item.quantity || 0));
@@ -962,7 +1138,7 @@ function updateNgoMetrics(donations) {
     if (rDonors) rDonors.textContent = totalDonors;
 
     // 3. Render Dynamic Impact Reports Table
-    renderImpactReportsTable(donations);
+    renderImpactReportsTable(donations.filter(d => isDonationAssignedToNgo(d)));
 }
 
 // Render Dynamic Generated Impact Reports Table
@@ -1114,44 +1290,117 @@ function renderNgoRequestsTable(donations) {
     const activeBody = document.getElementById('activeRequestsBody');
     const fullBody = document.getElementById('fullRequestsBody');
 
-    const acceptedOrMine = donations.filter(d => d.status === 'Accepted' || d.status === 'Picked Up' || d.status === 'Delivered');
+    const acceptedOrMine = donations.filter(d => isDonationAssignedToNgo(d));
 
     const renderRow = (d) => {
         const firstItem = (d.items && d.items.length > 0) ? d.items[0] : { name: "Food Package" };
         let totalQty = 0;
-        if (d.items) d.items.forEach(i => totalQty += Number(i.quantity || 0));
+        let qtyUnit = 'kg';
+        if (d.items) {
+            d.items.forEach(i => totalQty += Number(i.quantity || 0));
+            qtyUnit = d.items[0]?.unit || 'kg';
+        }
 
         let badgeClass = 'badge-pending';
         if (d.status === 'Accepted') badgeClass = 'badge-approved';
         if (d.status === 'Picked Up') badgeClass = 'badge-scheduled';
         if (d.status === 'Delivered') badgeClass = 'badge-completed';
 
-        const shortId = d._id ? d._id.substring(0, 8).toUpperCase() : 'REQ-1001';
+        const shortId = d._id ? String(d._id).substring(0, 8).toUpperCase() : 'REQ-1001';
+        const donorName = d.pickup_details?.contact_name || 'Verified Donor';
+        const donorPhone = d.pickup_details?.contact_phone || '';
+        const address = d.pickup_location?.address || d.pickup_details?.address || 'Ballari Service Location';
+
+        let actionBtnHtml = '';
+        if (d.status === 'Accepted') {
+            actionBtnHtml = `
+                <button class="btn-status-action btn-status-pickup" onclick="handleUpdatePickupStatus('${d._id}', 'Picked Up')">
+                    <i class="fa-solid fa-truck"></i> Mark Picked Up
+                </button>
+            `;
+        } else if (d.status === 'Picked Up') {
+            actionBtnHtml = `
+                <button class="btn-status-action btn-status-deliver" onclick="handleUpdatePickupStatus('${d._id}', 'Delivered')">
+                    <i class="fa-solid fa-circle-check"></i> Mark Delivered
+                </button>
+            `;
+        } else {
+            actionBtnHtml = `
+                <span class="btn-status-completed">
+                    <i class="fa-solid fa-circle-check"></i> Delivered
+                </span>
+            `;
+        }
+
+        const phoneBtn = donorPhone ? `
+            <a href="tel:${donorPhone}" class="btn-status-action btn-status-call" title="Call Donor" style="text-decoration:none;">
+                <i class="fa-solid fa-phone"></i> ${donorPhone}
+            </a>
+        ` : '';
 
         return `
             <tr data-status="${d.status.toLowerCase()}">
                 <td style="font-weight: 800; color: #15803D;">#${shortId}</td>
                 <td style="font-weight: 700; color: #0F172A;">${firstItem.name}</td>
-                <td style="color: #475569;">${d.pickup_details?.contact_name || 'Donor'}</td>
-                <td style="font-weight: 600;">${totalQty} kg</td>
-                <td style="color: #64748B; font-size: 12px;">${d.pickup_details?.address || 'Ballari'}</td>
-                <td style="color: #64748B; font-size: 12px;">${d.pickup_details?.time || 'Today, Immediate'}</td>
+                <td style="font-weight: 600;">${totalQty} ${qtyUnit}</td>
+                <td style="color: #475569;">
+                    <div style="font-weight:600;">${donorName}</div>
+                    ${phoneBtn ? `<div style="margin-top:2px;">${phoneBtn}</div>` : ''}
+                </td>
+                <td style="color: #64748B; font-size: 12px; max-width:200px;">${address}</td>
                 <td><span class="badge ${badgeClass}">${d.status}</span></td>
                 <td>
-                    ${d.pickup_details?.contact_phone ? `<button class="btn-help" style="padding: 4px 10px; font-size: 11px;" onclick="alert('Calling Donor (${d.pickup_details.contact_phone})')"><i class="fa-solid fa-phone"></i> Call Donor</button>` : `<span style="font-size:11px; color:#94A3B8;">Verified</span>`}
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        ${actionBtnHtml}
+                    </div>
                 </td>
             </tr>
         `;
     };
 
-    if (activeBody && acceptedOrMine.length > 0) {
-        activeBody.innerHTML = acceptedOrMine.slice(0, 3).map(renderRow).join('');
+    if (activeBody) {
+        if (acceptedOrMine.length === 0) {
+            activeBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#94A3B8;">No active pickup claims yet. Accept an incoming food offer to begin.</td></tr>`;
+        } else {
+            activeBody.innerHTML = acceptedOrMine.slice(0, 4).map(renderRow).join('');
+        }
     }
 
-    if (fullBody && acceptedOrMine.length > 0) {
-        fullBody.innerHTML = acceptedOrMine.map(renderRow).join('');
+    if (fullBody) {
+        if (acceptedOrMine.length === 0) {
+            fullBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:#94A3B8;">No claims recorded. Browse the available stream and accept surplus food donations.</td></tr>`;
+        } else {
+            fullBody.innerHTML = acceptedOrMine.map(renderRow).join('');
+        }
     }
 }
+
+// Update Status Action for Pickups (Accepted -> Picked Up -> Delivered)
+window.handleUpdatePickupStatus = function(donationId, newStatus) {
+    if (!confirm(`Confirm updating pickup status to "${newStatus}"?`)) return;
+
+    fetch(`${API_BASE}/donations/update-status/${donationId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            status: newStatus,
+            volunteer_name: currentNgoUser?.name || 'Assigned Courier'
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`Status updated to "${newStatus}" successfully!`);
+            loadNgoDashboardData();
+        } else {
+            alert(`Error: ${data.message}`);
+        }
+    })
+    .catch(err => {
+        console.error("Error updating status:", err);
+        alert("Error connecting to server.");
+    });
+};
 
 // ============================================
 // NGO ACTIONS: ACCEPT / REJECT / REQUEST
@@ -1190,18 +1439,30 @@ window.handleAcceptDonation = function(donationId) {
 
 let currentRejectingDonationId = null;
 
-window.openDecisionRejectModal = function(donationId, title, qty, location) {
+window.openDecisionRejectModal = function(donationId, title, qty, location, distKm, donorName) {
     currentRejectingDonationId = donationId;
     const modal = document.getElementById('ngoDecisionModal');
     if (!modal) return;
 
-    document.getElementById('decisionItemTitle').textContent = title || 'Food Items';
-    document.getElementById('decisionItemQty').textContent = qty || '50 kg';
-    document.getElementById('decisionItemLocation').textContent = location || 'Local Address';
+    const elTitle = document.getElementById('decisionItemTitle');
+    const elQty = document.getElementById('decisionItemQty');
+    const elLoc = document.getElementById('decisionItemLocation');
+    const elDist = document.getElementById('decisionItemDist');
+    const elDonor = document.getElementById('decisionItemDonor');
+
+    if (elTitle) elTitle.textContent = title || 'Food Items';
+    if (elQty) elQty.textContent = qty || 'Surplus Food';
+    if (elLoc) elLoc.textContent = location || 'Donor Address';
+    if (elDist) elDist.textContent = distKm ? `${distKm} km from NGO Base` : 'Within Proximity Radius';
+    if (elDonor) elDonor.textContent = donorName || 'Verified Donor';
     
-    document.getElementById('rejectionReasonBox').style.display = 'block';
-    document.getElementById('btnConfirmModalAccept').onclick = function() { handleAcceptDonation(donationId); };
-    document.getElementById('btnConfirmModalReject').onclick = function() { confirmModalReject(); };
+    const reasonBox = document.getElementById('rejectionReasonBox');
+    if (reasonBox) reasonBox.style.display = 'block';
+
+    const btnAccept = document.getElementById('btnConfirmModalAccept');
+    const btnReject = document.getElementById('btnConfirmModalReject');
+    if (btnAccept) btnAccept.onclick = function() { handleAcceptDonation(donationId); };
+    if (btnReject) btnReject.onclick = function() { confirmModalReject(); };
 
     modal.style.display = 'flex';
 };
@@ -1236,9 +1497,9 @@ window.confirmModalReject = function() {
     }
 
     closeDecisionModal();
-    showToast("Donation passed / removed from your dashboard.");
+    showToast("Donation passed and routed to next nearest NGO in cascade.");
 
-    // 3. Send API request to persist rejection in database
+    // 3. Send API request to persist rejection in database & cascade to next nearest NGO
     fetch(`${API_BASE}/donations/reject/${donationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1345,13 +1606,13 @@ window.searchDonationsList = function() {
 // Search Requests Table
 window.searchRequestsTable = function() {
     const input = document.getElementById('requestSearchInput');
-    const filter = input ? input.value.toLowerCase() : '';
+    const filter = input ? input.value.toLowerCase().trim() : '';
     const rows = document.querySelectorAll('#allRequestsTable tbody tr');
 
     rows.forEach(row => {
         const text = row.textContent.toLowerCase();
-        if (text.includes(filter)) {
-            row.style.display = 'table-row';
+        if (!filter || text.includes(filter)) {
+            row.style.display = '';
         } else {
             row.style.display = 'none';
         }
@@ -1361,15 +1622,16 @@ window.searchRequestsTable = function() {
 // Filter Requests Status Chips
 window.filterRequestsStatus = function(status, chipEl) {
     if (chipEl) {
-        document.querySelectorAll('.filter-chips-group .filter-chip').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('#requestsMainView .filter-chips-group .filter-chip').forEach(c => c.classList.remove('active'));
         chipEl.classList.add('active');
     }
 
     const rows = document.querySelectorAll('#allRequestsTable tbody tr');
+    const query = status.toLowerCase();
     rows.forEach(row => {
-        const rowStatus = row.getAttribute('data-status') || '';
-        if (status === 'all' || rowStatus.includes(status)) {
-            row.style.display = 'table-row';
+        const rowStatus = (row.getAttribute('data-status') || '').toLowerCase();
+        if (query === 'all' || rowStatus.includes(query)) {
+            row.style.display = '';
         } else {
             row.style.display = 'none';
         }

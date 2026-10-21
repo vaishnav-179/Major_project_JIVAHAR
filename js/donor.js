@@ -41,18 +41,24 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => console.error("Error fetching stats:", err));
 
     // 3. Fetch User Donations
-    fetch(`${API_BASE}/donations/${donorId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.userDonations = data.donations;
-                renderDonationsTable(data.donations);
-                renderRecentDonations(data.donations);
-                if (typeof updateCharts === 'function') updateCharts(data.donations);
-                if (typeof renderReportAndImpact === 'function') renderReportAndImpact(data.donations);
-            }
-        })
-        .catch(err => console.error("Error fetching donations:", err));
+    window.fetchUserDonations = function() {
+        fetch(`${API_BASE}/donations/${donorId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.userDonations = data.donations;
+                    renderDonationsTable(data.donations);
+                    renderRecentDonations(data.donations);
+                    if (typeof updateCharts === 'function') updateCharts(data.donations);
+                    if (typeof renderReportAndImpact === 'function') renderReportAndImpact(data.donations);
+                }
+            })
+            .catch(err => console.error("Error fetching donations:", err));
+    };
+    window.fetchUserDonations();
+    if (typeof initMyDonationsTabControls === 'function') {
+        initMyDonationsTabControls();
+    }
 
     // Initialize Pickup Map Picker
     window.initDonorPickupLocationPicker = function() {
@@ -271,38 +277,58 @@ function updateCharts(donations) {
     }
 }
 
+// ============================================
+// MY DONATIONS TABLE, FILTERS, SEARCH & PAGINATION
+// ============================================
+let donationTableState = {
+    searchQuery: '',
+    statusFilter: 'all',
+    dateFilter: 'all',
+    currentPage: 1,
+    pageSize: 10
+};
+
 function renderDonationsTable(donations) {
+    window.userDonations = Array.isArray(donations) ? donations : [];
+    
+    // Update Sidebar Widgets & Partner list
+    const currentPeriod = document.getElementById('sidebar-summary-period-select')?.value || 'month';
+    updateSidebarSummary(window.userDonations, currentPeriod);
+    renderTopNgoPartners(window.userDonations);
+
+    // Apply active filters and render table
+    applyDonationFilters();
+}
+
+function applyDonationFilters() {
+    const all = window.userDonations || [];
     const tbody = document.getElementById('donations-table-body');
     if (!tbody) return;
 
-    tbody.innerHTML = ''; // Clear static content
-
-    // 1. Calculate Filter Counts & Summaries
-    let completedCount = 0;
+    // 1. Calculate Badges & Tab Counts
+    let pendingCount = 0;
     let pickedUpCount = 0;
     let deliveredCount = 0;
     let cancelledCount = 0;
-    let totalKg = 0;
 
-    if (donations && Array.isArray(donations)) {
-        donations.forEach(donation => {
-            const s = (donation.status || 'Pending').toLowerCase();
-            if (s.includes('complet')) completedCount++;
-            if (s.includes('picked')) pickedUpCount++;
-            if (s.includes('deliver')) deliveredCount++;
-            if (s.includes('cancel')) cancelledCount++;
-
-            if (donation.items) {
-                donation.items.forEach(i => totalKg += Number(i.quantity || 0));
-            }
-        });
-    }
+    all.forEach(d => {
+        const s = (d.status || 'Pending').toLowerCase();
+        if (s.includes('picked')) {
+            pickedUpCount++;
+        } else if (s.includes('deliver') || s.includes('complet')) {
+            deliveredCount++;
+        } else if (s.includes('cancel')) {
+            cancelledCount++;
+        } else {
+            pendingCount++;
+        }
+    });
 
     const elAll = document.getElementById('count-all-donations');
-    if (elAll) elAll.textContent = donations ? donations.length : 0;
-    
-    const elComp = document.getElementById('count-completed-donations');
-    if (elComp) elComp.textContent = completedCount;
+    if (elAll) elAll.textContent = all.length;
+
+    const elPend = document.getElementById('count-pending-donations');
+    if (elPend) elPend.textContent = pendingCount;
 
     const elPick = document.getElementById('count-picked-up-donations');
     if (elPick) elPick.textContent = pickedUpCount;
@@ -313,122 +339,696 @@ function renderDonationsTable(donations) {
     const elCanc = document.getElementById('count-cancelled-donations');
     if (elCanc) elCanc.textContent = cancelledCount;
 
-    // Update pagination info
-    const pageInfo = document.getElementById('donations-pagination-info');
-    if (pageInfo) {
-        pageInfo.textContent = donations && donations.length > 0 ? `Showing 1 to ${donations.length} of ${donations.length} donations` : `Showing 0 of 0 donations`;
+    // 2. Filter Donations
+    const now = new Date();
+    const filtered = all.filter(d => {
+        // Status filter
+        const s = (d.status || 'Pending').toLowerCase();
+        if (donationTableState.statusFilter !== 'all') {
+            const sf = donationTableState.statusFilter.toLowerCase();
+            if (sf === 'pending' && !s.includes('pending')) return false;
+            if (sf === 'picked-up' && !s.includes('picked')) return false;
+            if (sf === 'delivered' && !s.includes('deliver') && !s.includes('complet')) return false;
+            if (sf === 'cancelled' && !s.includes('cancel')) return false;
+            if (sf === 'recycled' && !s.includes('recycled') && !s.includes('manufacturer')) return false;
+        }
+
+        // Date filter
+        if (donationTableState.dateFilter !== 'all' && d.created_at) {
+            const dDate = new Date(d.created_at);
+            if (donationTableState.dateFilter === 'today') {
+                if (dDate.toDateString() !== now.toDateString()) return false;
+            } else if (donationTableState.dateFilter === 'week') {
+                const diffTime = Math.abs(now - dDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays > 7) return false;
+            } else if (donationTableState.dateFilter === 'month') {
+                if (dDate.getMonth() !== now.getMonth() || dDate.getFullYear() !== now.getFullYear()) return false;
+            }
+        }
+
+        // Search Query filter
+        if (donationTableState.searchQuery) {
+            const q = donationTableState.searchQuery;
+            const idMatch = (d._id || '').toLowerCase().includes(q);
+            const statusMatch = s.includes(q);
+            const receiverMatch = ((d.assigned_ngo && d.assigned_ngo.name) || '').toLowerCase().includes(q);
+            const addressMatch = ((d.pickup_details && d.pickup_details.address) || (d.pickup_location && d.pickup_location.address) || '').toLowerCase().includes(q);
+            const itemsMatch = (d.items || []).some(item => 
+                (item.name || '').toLowerCase().includes(q) || 
+                (item.category || '').toLowerCase().includes(q)
+            );
+            if (!idMatch && !statusMatch && !receiverMatch && !addressMatch && !itemsMatch) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    // 3. Pagination calculation
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / donationTableState.pageSize));
+    if (donationTableState.currentPage > totalPages) {
+        donationTableState.currentPage = totalPages;
+    }
+    if (donationTableState.currentPage < 1) {
+        donationTableState.currentPage = 1;
     }
 
-    // Update Sidebar Widgets
-    const sbDonations = document.getElementById('sidebar-total-donations');
-    if (sbDonations) sbDonations.textContent = donations ? donations.length : 0;
+    const startIndex = (donationTableState.currentPage - 1) * donationTableState.pageSize;
+    const endIndex = Math.min(startIndex + donationTableState.pageSize, total);
+    const pageItems = filtered.slice(startIndex, endIndex);
 
-    const sbFood = document.getElementById('sidebar-total-food');
-    if (sbFood) sbFood.innerHTML = `${totalKg} <span style="font-size:13px; font-weight:500;">kg</span>`;
+    // Update pagination text
+    const pageInfo = document.getElementById('donations-pagination-info');
+    if (pageInfo) {
+        pageInfo.textContent = total > 0 ? `Showing ${startIndex + 1} to ${endIndex} of ${total} donations` : `Showing 0 of 0 donations`;
+    }
 
-    const sbPeople = document.getElementById('sidebar-people-fed');
-    if (sbPeople) sbPeople.textContent = totalKg * 4;
+    // Render Table Rows
+    renderDonationsRows(pageItems);
 
-    const sbCO2 = document.getElementById('sidebar-total-co2');
-    if (sbCO2) sbCO2.innerHTML = `${(totalKg * 2.5).toFixed(1)} <span style="font-size:13px; font-weight:500;">kg</span>`;
+    // Render Pagination Controls
+    renderPaginationControls(totalPages);
+}
 
-    if (!donations || donations.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">No donations found. Create one to get started!</td></tr>`;
+function renderDonationsRows(items) {
+    const tbody = document.getElementById('donations-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!items || items.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center; padding: 48px 16px; color:var(--dash-text-muted);">
+                    <i class="fa-solid fa-box-open" style="font-size:36px; color:#cbd5e1; margin-bottom:12px; display:block;"></i>
+                    <strong style="font-size:14px; color:#475569;">No donations match your filter criteria</strong>
+                    <p style="margin:4px 0 0 0; font-size:12px; color:#94a3b8;">Try adjusting your search keywords, status filter, or date range.</p>
+                </td>
+            </tr>
+        `;
         return;
     }
 
-    donations.forEach(donation => {
-        // Map status to styling
+    items.forEach(donation => {
+        // Status Badge
         let statusBadge = '';
-        let rowDataAttr = '';
-        if (donation.status === 'Delivered') {
+        const s = donation.status || 'Pending';
+        if (s === 'Delivered') {
             statusBadge = `<span style="display:inline-flex; align-items:center; gap:6px; background:#dcfce7; color:#166534; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;"><i class="fa-regular fa-circle-check"></i> Delivered</span>`;
-            rowDataAttr = `data-status="delivered" data-completed="true"`;
-        } else if (donation.status === 'Picked Up') {
+        } else if (s === 'Picked Up') {
             statusBadge = `<span style="display:inline-flex; align-items:center; gap:6px; background:#eff6ff; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;"><i class="fa-solid fa-truck-fast"></i> Picked Up</span>`;
-            rowDataAttr = `data-status="picked-up" data-completed="false"`;
-        } else if (donation.status === 'Cancelled') {
+        } else if (s === 'Cancelled') {
             statusBadge = `<span style="display:inline-flex; align-items:center; gap:6px; background:#fee2e2; color:#b91c1c; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;"><i class="fa-regular fa-circle-xmark"></i> Cancelled</span>`;
-            rowDataAttr = `data-status="cancelled" data-completed="false"`;
+        } else if (s.includes('Manufacturer') || s.includes('Recycled')) {
+            statusBadge = `<span style="display:inline-flex; align-items:center; gap:6px; background:#f3e8ff; color:#7c3aed; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;"><i class="fa-solid fa-recycle"></i> Bio-Recycled</span>`;
         } else {
             statusBadge = `<span style="display:inline-flex; align-items:center; gap:6px; background:#fef3c7; color:#b45309; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;"><i class="fa-regular fa-clock"></i> Pending</span>`;
-            rowDataAttr = `data-status="pending" data-completed="false"`;
         }
 
-        // Get first item name for display
-        const firstItem = donation.items && donation.items.length > 0 ? donation.items[0] : { name: "Donation Package", category: "Mixed" };
+        // Food info
+        const firstItem = donation.items && donation.items.length > 0 ? donation.items[0] : { name: "Donation Package", category: "Cooked Food" };
         const totalItems = donation.items ? donation.items.length : 0;
         
-        let iconOrImageHtml = `<i class="fa-solid fa-box"></i>`;
+        let iconOrImageHtml = `<i class="fa-solid fa-utensils"></i>`;
         if (firstItem.photo) {
             iconOrImageHtml = `<img src="${firstItem.photo}" style="width:100%; height:100%; object-fit:cover; border-radius:8px;" alt="${firstItem.name}">`;
         }
         
         let totalQty = 0;
         let qtyUnit = 'items';
-        if (donation.items) {
-             donation.items.forEach(i => totalQty += Number(i.quantity || 0));
-             qtyUnit = donation.items[0]?.unit || 'items';
+        if (donation.items && donation.items.length > 0) {
+            donation.items.forEach(i => totalQty += Number(i.quantity || 0));
+            qtyUnit = donation.items[0]?.unit || 'items';
         }
 
-        const dateObj = new Date(donation.created_at);
+        const dateObj = new Date(donation.created_at || Date.now());
         const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        // NGO / Receiver HTML
+        let receiverHtml = `<span style="color:#94a3b8; font-size:12px; font-style:italic;"><i class="fa-solid fa-satellite-dish" style="margin-right:4px;"></i>Awaiting NGO</span>`;
+        if (donation.assigned_ngo && donation.assigned_ngo.name) {
+            receiverHtml = `
+                <div>
+                    <strong style="font-size:13px; color:#1e293b; display:flex; align-items:center; gap:4px;">
+                        <i class="fa-solid fa-building-ngo" style="color:#2563eb;"></i> ${donation.assigned_ngo.name}
+                    </strong>
+                    ${donation.assigned_ngo.phone ? `<span style="font-size:11px; color:#64748b;"><i class="fa-solid fa-phone" style="font-size:10px;"></i> ${donation.assigned_ngo.phone}</span>` : ''}
+                </div>
+            `;
+        } else if (s.includes('Manufacturer') || s.includes('Recycled')) {
+            receiverHtml = `<strong style="font-size:13px; color:#7c3aed; display:flex; align-items:center; gap:4px;"><i class="fa-solid fa-industry"></i> Bio-Recycler Intake</strong>`;
+        }
+
+        // Cancel Button
+        let cancelBtnHtml = '';
+        if (s !== 'Delivered' && s !== 'Cancelled' && !s.includes('Manufacturer') && !s.includes('Recycled')) {
+            cancelBtnHtml = `<button class="btn btn-secondary" onclick="cancelDonation('${donation._id}')" style="padding:6px 12px; font-size:12px; border:1px solid #ef4444; color:#ef4444; background:#fff; cursor:pointer; font-weight:600; border-radius:6px;"><i class="fa-solid fa-ban" style="margin-right:4px;"></i> Cancel</button>`;
+        }
 
         const tr = document.createElement('tr');
         tr.className = 'history-row';
         tr.style.cssText = 'border-bottom:1px solid var(--dash-border); transition:background 0.2s;';
         tr.onmouseover = function() { this.style.background='#f8fafc'; };
         tr.onmouseout = function() { this.style.background='transparent'; };
-        let cancelBtnHtml = '';
-        if (donation.status !== 'Delivered' && donation.status !== 'Cancelled') {
-            cancelBtnHtml = `<button class="btn btn-secondary" onclick="cancelDonation('${donation._id}')" style="padding:6px 12px; font-size:12px; border:1px solid #ef4444; color:#ef4444; background:#fff; cursor:pointer; font-weight:600;"><i class="fa-solid fa-ban" style="margin-right:4px;"></i> Cancel</button>`;
-        }
 
         tr.innerHTML = `
-            <td style="padding:16px 8px;">
+            <td style="padding:14px 8px;">
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <div style="width:40px; height:40px; border-radius:8px; background:var(--dash-primary-light); color:var(--dash-primary); display:flex; align-items:center; justify-content:center; font-size:18px;">
+                    <div style="width:40px; height:40px; border-radius:8px; background:var(--dash-primary-light); color:var(--dash-primary); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; overflow:hidden;">
                         ${iconOrImageHtml}
                     </div>
                     <div>
-                        <p style="margin:0; font-size:14px; font-weight:700; color:var(--dash-text-main);">${firstItem.name} ${totalItems > 1 ? `+${totalItems-1} more` : ''}</p>
-                        <p style="margin:2px 0 0 0; font-size:12px; color:var(--dash-text-muted);">${firstItem.category}</p>
+                        <p style="margin:0; font-size:14px; font-weight:700; color:var(--dash-text-main);">${firstItem.name} ${totalItems > 1 ? `<span style="font-weight:600; color:var(--dash-primary); font-size:12px;">+${totalItems-1} more</span>` : ''}</p>
+                        <p style="margin:2px 0 0 0; font-size:12px; color:var(--dash-text-muted);">${firstItem.category || 'Food'}</p>
                     </div>
                 </div>
             </td>
-            <td style="padding:16px 8px; font-size:13px; font-weight:700; color:#16a34a;">${donation._id.substring(0, 8).toUpperCase()}</td>
-            <td style="padding:16px 8px; font-size:13px;">
-                <p style="margin:0; font-weight:500; color:var(--dash-text-main);">${dateStr}</p>
-                <p style="margin:2px 0 0 0; color:var(--dash-text-muted);">${timeStr}</p>
+            <td style="padding:14px 8px; font-size:13px; font-weight:700; color:#16a34a; font-family:monospace;">#${(donation._id || '').substring(0, 8).toUpperCase()}</td>
+            <td style="padding:14px 8px; font-size:13px;">
+                <p style="margin:0; font-weight:600; color:var(--dash-text-main);">${dateStr}</p>
+                <p style="margin:2px 0 0 0; color:var(--dash-text-muted); font-size:12px;">${timeStr}</p>
             </td>
-            <td style="padding:16px 8px; font-size:13px;">
+            <td style="padding:14px 8px; font-size:13px;">
                 <p style="margin:0; font-weight:700; color:var(--dash-text-main);">${totalQty} ${qtyUnit}</p>
             </td>
-            <td style="padding:16px 8px;">
+            <td style="padding:14px 8px;">
                 ${statusBadge}
             </td>
-            <td style="padding:16px 8px; font-size:13px;">
-                <p style="margin:0; font-weight:500; color:var(--dash-text-main);">${donation.pickup_details?.address || 'N/A'}</p>
+            <td style="padding:14px 8px;">
+                ${receiverHtml}
             </td>
-            <td style="padding:16px 8px; text-align:right;">
+            <td style="padding:14px 8px; text-align:right;">
                 <div style="display:flex; justify-content:flex-end; gap:8px;">
-                    <button class="btn btn-secondary" onclick="openDonationDetailModal('${donation._id}')" style="padding:6px 12px; font-size:12px; border:1px solid #10b981; color:#10b981; background:#fff; cursor:pointer; font-weight:600;"><i class="fa-regular fa-eye" style="margin-right:4px;"></i> View</button>
+                    <button class="btn btn-secondary" onclick="openDonationDetailModal('${donation._id}')" style="padding:6px 12px; font-size:12px; border:1px solid #10b981; color:#10b981; background:#fff; cursor:pointer; font-weight:600; border-radius:6px;"><i class="fa-regular fa-eye" style="margin-right:4px;"></i> View</button>
                     ${cancelBtnHtml}
                 </div>
             </td>
         `;
-        
-        // Add data attributes for filters
-        const statusText = donation.status || 'Pending';
-        tr.setAttribute('data-status', statusText.toLowerCase().replace(' ', '-'));
-        tr.setAttribute('data-completed', statusText === 'Delivered' ? 'true' : 'false');
-        
+
         tbody.appendChild(tr);
     });
 }
 
-// ============================================
+function renderPaginationControls(totalPages) {
+    const controls = document.getElementById('donations-pagination-controls');
+    if (!controls) return;
+
+    controls.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    // Previous Button
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'btn btn-secondary page-btn';
+    prevBtn.style.cssText = 'width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; color:var(--dash-text-muted); cursor:pointer;';
+    prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+    if (donationTableState.currentPage === 1) {
+        prevBtn.style.opacity = '0.5';
+        prevBtn.style.cursor = 'not-allowed';
+    } else {
+        prevBtn.onclick = () => {
+            donationTableState.currentPage--;
+            applyDonationFilters();
+        };
+    }
+    controls.appendChild(prevBtn);
+
+    // Numbered Buttons
+    for (let p = 1; p <= totalPages; p++) {
+        if (totalPages > 7 && Math.abs(p - donationTableState.currentPage) > 2 && p !== 1 && p !== totalPages) {
+            if (p === 2 || p === totalPages - 1) {
+                const ellipsis = document.createElement('span');
+                ellipsis.style.cssText = 'display:flex; align-items:center; justify-content:center; width:28px; height:32px; color:var(--dash-text-muted);';
+                ellipsis.textContent = '...';
+                controls.appendChild(ellipsis);
+            }
+            continue;
+        }
+
+        const pageBtn = document.createElement('button');
+        pageBtn.style.cssText = 'width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px;';
+        if (p === donationTableState.currentPage) {
+            pageBtn.className = 'btn btn-primary page-btn page-number active';
+            pageBtn.style.background = 'var(--dash-primary)';
+            pageBtn.style.color = '#fff';
+            pageBtn.style.border = 'none';
+        } else {
+            pageBtn.className = 'btn btn-secondary page-btn page-number';
+            pageBtn.style.background = '#fff';
+            pageBtn.style.color = 'var(--dash-text-main)';
+            pageBtn.style.border = '1px solid var(--dash-border)';
+            pageBtn.onclick = () => {
+                donationTableState.currentPage = p;
+                applyDonationFilters();
+            };
+        }
+        pageBtn.textContent = p;
+        controls.appendChild(pageBtn);
+    }
+
+    // Next Button
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-secondary page-btn';
+    nextBtn.style.cssText = 'width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--dash-border); border-radius:6px; color:var(--dash-text-muted); cursor:pointer;';
+    nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+    if (donationTableState.currentPage === totalPages) {
+        nextBtn.style.opacity = '0.5';
+        nextBtn.style.cursor = 'not-allowed';
+    } else {
+        nextBtn.onclick = () => {
+            donationTableState.currentPage++;
+            applyDonationFilters();
+        };
+    }
+    controls.appendChild(nextBtn);
+}
+
+function updateSidebarSummary(donations, period = 'month') {
+    let filtered = donations || [];
+    
+    if (period === 'month') {
+        const now = new Date();
+        const curM = now.getMonth();
+        const curY = now.getFullYear();
+        filtered = filtered.filter(d => {
+            if (!d.created_at) return false;
+            const dObj = new Date(d.created_at);
+            return dObj.getMonth() === curM && dObj.getFullYear() === curY;
+        });
+    }
+
+    let totalKg = 0;
+    filtered.forEach(d => {
+        (d.items || []).forEach(i => {
+            const qty = Number(i.quantity || 0);
+            const unit = String(i.unit || '').toLowerCase();
+            if (unit === 'kg' || unit === 'litres') {
+                totalKg += qty;
+            } else if (unit === 'pieces') {
+                totalKg += qty * 0.1;
+            } else {
+                totalKg += qty;
+            }
+        });
+    });
+
+    const sbDonations = document.getElementById('sidebar-total-donations');
+    if (sbDonations) sbDonations.textContent = filtered.length;
+
+    const sbFood = document.getElementById('sidebar-total-food');
+    if (sbFood) sbFood.innerHTML = `${Math.round(totalKg)} <span style="font-size:13px; font-weight:500;">kg</span>`;
+
+    const sbPeople = document.getElementById('sidebar-people-fed');
+    if (sbPeople) sbPeople.textContent = Math.round(totalKg * 4);
+
+    const sbCO2 = document.getElementById('sidebar-total-co2');
+    if (sbCO2) sbCO2.innerHTML = `${(totalKg * 2.5).toFixed(1)} <span style="font-size:13px; font-weight:500;">kg</span>`;
+}
+
+function renderTopNgoPartners(donations) {
+    const list = document.getElementById('top-ngo-list');
+    if (!list) return;
+
+    const ngoMap = {};
+    (donations || []).forEach(d => {
+        if (d.assigned_ngo && d.assigned_ngo.name) {
+            const key = d.assigned_ngo.name;
+            if (!ngoMap[key]) {
+                ngoMap[key] = {
+                    name: key,
+                    phone: d.assigned_ngo.phone || '',
+                    count: 0
+                };
+            }
+            ngoMap[key].count++;
+        }
+    });
+
+    const ngos = Object.values(ngoMap).sort((a, b) => b.count - a.count);
+
+    if (ngos.length === 0) {
+        list.innerHTML = `
+            <div style="text-align:center; padding:16px 8px; color:var(--dash-text-muted); font-size:12px;">
+                <i class="fa-solid fa-hand-holding-heart" style="font-size:24px; margin-bottom:8px; display:block; color:#94a3b8;"></i>
+                No NGO partners assigned yet.<br>New donations will appear here once accepted.
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = '';
+    ngos.slice(0, 4).forEach(ngo => {
+        const itemDiv = document.createElement('div');
+        itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0;';
+        itemDiv.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:50%; background:#dbeafe; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700;">
+                    ${ngo.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <h5 style="margin:0; font-size:13px; font-weight:700; color:#1e293b;">${ngo.name}</h5>
+                    <p style="margin:2px 0 0 0; font-size:11px; color:#64748b;">${ngo.phone ? `<i class="fa-solid fa-phone" style="font-size:10px;"></i> ${ngo.phone}` : 'Registered NGO Partner'}</p>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700;">${ngo.count} ${ngo.count === 1 ? 'Pickup' : 'Pickups'}</span>
+            </div>
+        `;
+        list.appendChild(itemDiv);
+    });
+}
+
+window.exportDonationsToCSV = function() {
+    const donations = window.userDonations || [];
+    if (!donations.length) {
+        alert("No donations available to export.");
+        return;
+    }
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    csvContent += "Donation ID,Date,Time,Food Items,Total Quantity,Unit,Status,Assigned Receiver,Pickup Address\n";
+
+    donations.forEach(d => {
+        const id = (d._id || '').substring(0, 8).toUpperCase();
+        const dObj = new Date(d.created_at || Date.now());
+        const dateStr = dObj.toLocaleDateString('en-US');
+        const timeStr = dObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        
+        const itemNames = (d.items || []).map(i => `${i.name || 'Food'} (${i.quantity || 1} ${i.unit || 'units'})`).join('; ');
+        let totalQty = 0;
+        let unit = 'units';
+        (d.items || []).forEach(i => {
+            totalQty += Number(i.quantity || 0);
+            if (i.unit) unit = i.unit;
+        });
+
+        const status = d.status || 'Pending';
+        const receiver = d.assigned_ngo?.name || (status.includes('Manufacturer') ? 'Bio-Recycler Intake' : 'Awaiting NGO');
+        const address = (d.pickup_details?.address || d.pickup_location?.address || 'N/A').replace(/"/g, '""');
+
+        csvContent += `"${id}","${dateStr}","${timeStr}","${itemNames.replace(/"/g, '""')}","${totalQty}","${unit}","${status}","${receiver.replace(/"/g, '""')}","${address}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `jivahar_donations_history_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
+window.printDonationHistory = function() {
+    const donations = window.userDonations || [];
+    if (!donations.length) {
+        alert("No donations available to print.");
+        return;
+    }
+
+    let userStr = localStorage.getItem('jivahar_user');
+    let user = {};
+    try { user = JSON.parse(userStr) || {}; } catch(e){}
+
+    const printWin = window.open('', '_blank', 'width=900,height=700');
+    if (!printWin) {
+        alert("Pop-up blocked. Please allow pop-ups to print donation history.");
+        return;
+    }
+
+    let rowsHtml = '';
+    donations.forEach(d => {
+        const id = (d._id || '').substring(0, 8).toUpperCase();
+        const dObj = new Date(d.created_at || Date.now());
+        const dateStr = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const items = (d.items || []).map(i => `${i.name} (${i.quantity} ${i.unit || 'units'})`).join(', ') || 'Food Package';
+        let totalQty = 0;
+        let unit = 'units';
+        (d.items || []).forEach(i => {
+            totalQty += Number(i.quantity || 0);
+            if (i.unit) unit = i.unit;
+        });
+        const status = d.status || 'Pending';
+        const receiver = d.assigned_ngo?.name || (status.includes('Manufacturer') ? 'Bio-Recycler Intake' : 'Awaiting NGO');
+
+        rowsHtml += `
+            <tr>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:bold; color:#16a34a;">#${id}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${dateStr}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${items}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0; font-weight:bold;">${totalQty} ${unit}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${status}</td>
+                <td style="padding:10px; border-bottom:1px solid #e2e8f0;">${receiver}</td>
+            </tr>
+        `;
+    });
+
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Jivahar - Donation History Statement</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 30px; color: #1e293b; }
+                .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #16a34a; padding-bottom: 16px; margin-bottom: 24px; }
+                h1 { margin: 0; color: #16a34a; font-size: 24px; font-weight: 800; }
+                .meta { font-size: 13px; color: #64748b; line-height: 1.5; }
+                table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; margin-top: 20px; }
+                th { background: #f8fafc; padding: 10px; border-bottom: 2px solid #cbd5e1; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 11px; }
+                @media print {
+                    body { padding: 0; }
+                    button { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div>
+                    <h1>Jivahar Food Rescue Network</h1>
+                    <p style="margin:4px 0 0 0; font-size:13px; color:#64748b;">Official Donor Contribution Statement</p>
+                </div>
+                <div style="text-align:right;" class="meta">
+                    <strong>Donor:</strong> ${user.name || 'Valued Donor'}<br>
+                    <strong>Email:</strong> ${user.email || 'N/A'}<br>
+                    <strong>Date Generated:</strong> ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Donation ID</th>
+                        <th>Date</th>
+                        <th>Food Items</th>
+                        <th>Quantity</th>
+                        <th>Status</th>
+                        <th>Assigned Receiver</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <div style="margin-top:40px; text-align:center; font-size:12px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:16px;">
+                Thank you for contributing to reducing hunger and fighting food waste with Jivahar.
+            </div>
+            <script>
+                window.onload = function() { window.print(); };
+            <\/script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+};
+
+function initMyDonationsTabControls() {
+    // 1. Search input
+    const searchInput = document.getElementById('donation-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            donationTableState.searchQuery = e.target.value.trim().toLowerCase();
+            donationTableState.currentPage = 1;
+            applyDonationFilters();
+        });
+    }
+
+    // 2. Status select filter
+    const statusSelect = document.getElementById('donation-status-filter-select');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            donationTableState.statusFilter = val;
+            donationTableState.currentPage = 1;
+
+            // Sync with tabs
+            const tabs = document.querySelectorAll('#donation-history-tabs .history-tab');
+            tabs.forEach(t => {
+                const f = t.getAttribute('data-filter');
+                if (f === val) {
+                    t.classList.add('active');
+                    const label = t.querySelector('.tab-label');
+                    if (label) {
+                        label.style.fontWeight = '700';
+                        label.style.color = 'var(--dash-primary)';
+                    }
+                } else {
+                    t.classList.remove('active');
+                    const label = t.querySelector('.tab-label');
+                    if (label) {
+                        label.style.fontWeight = '500';
+                        label.style.color = 'var(--dash-text-muted)';
+                    }
+                }
+            });
+
+            applyDonationFilters();
+        });
+    }
+
+    // 3. Date select filter
+    const dateSelect = document.getElementById('donation-date-filter-select');
+    if (dateSelect) {
+        dateSelect.addEventListener('change', (e) => {
+            donationTableState.dateFilter = e.target.value;
+            donationTableState.currentPage = 1;
+            applyDonationFilters();
+        });
+    }
+
+    // 4. Reset filters button
+    const resetBtn = document.getElementById('donation-reset-filters-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            donationTableState.searchQuery = '';
+            donationTableState.statusFilter = 'all';
+            donationTableState.dateFilter = 'all';
+            donationTableState.currentPage = 1;
+
+            if (searchInput) searchInput.value = '';
+            if (statusSelect) statusSelect.value = 'all';
+            if (dateSelect) dateSelect.value = 'all';
+
+            const tabs = document.querySelectorAll('#donation-history-tabs .history-tab');
+            tabs.forEach(t => {
+                if (t.getAttribute('data-filter') === 'all') {
+                    t.classList.add('active');
+                    const label = t.querySelector('.tab-label');
+                    if (label) {
+                        label.style.fontWeight = '700';
+                        label.style.color = 'var(--dash-primary)';
+                    }
+                } else {
+                    t.classList.remove('active');
+                    const label = t.querySelector('.tab-label');
+                    if (label) {
+                        label.style.fontWeight = '500';
+                        label.style.color = 'var(--dash-text-muted)';
+                    }
+                }
+            });
+
+            applyDonationFilters();
+        });
+    }
+
+    // 5. History Tabs
+    const tabs = document.querySelectorAll('#donation-history-tabs .history-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                const label = t.querySelector('.tab-label');
+                if (label) {
+                    label.style.fontWeight = '500';
+                    label.style.color = 'var(--dash-text-muted)';
+                }
+            });
+
+            tab.classList.add('active');
+            const activeLabel = tab.querySelector('.tab-label');
+            if (activeLabel) {
+                activeLabel.style.fontWeight = '700';
+                activeLabel.style.color = 'var(--dash-primary)';
+            }
+
+            const filter = tab.getAttribute('data-filter');
+            donationTableState.statusFilter = filter;
+            donationTableState.currentPage = 1;
+
+            if (statusSelect) {
+                statusSelect.value = filter;
+            }
+
+            applyDonationFilters();
+        });
+    });
+
+    // 6. Per-page select
+    const perPageSelect = document.getElementById('donations-per-page-select');
+    if (perPageSelect) {
+        perPageSelect.addEventListener('change', (e) => {
+            donationTableState.pageSize = parseInt(e.target.value) || 10;
+            donationTableState.currentPage = 1;
+            applyDonationFilters();
+        });
+    }
+
+    // 7. Sidebar Summary Period select
+    const periodSelect = document.getElementById('sidebar-summary-period-select');
+    if (periodSelect) {
+        periodSelect.addEventListener('change', (e) => {
+            updateSidebarSummary(window.userDonations, e.target.value);
+        });
+    }
+
+    // 8. Sidebar Impact Report button
+    const impactBtn = document.getElementById('btn-sidebar-view-impact-report');
+    if (impactBtn) {
+        impactBtn.addEventListener('click', () => {
+            const impactTab = document.getElementById('tab-impact-reports');
+            if (impactTab) impactTab.click();
+        });
+    }
+
+    // 9. Sidebar Contact Support button
+    const supportBtn = document.getElementById('btn-sidebar-contact-support');
+    if (supportBtn) {
+        supportBtn.addEventListener('click', () => {
+            const supportTab = document.getElementById('tab-help-support');
+            if (supportTab) supportTab.click();
+        });
+    }
+
+    // 10. Sidebar View All NGOs
+    const ngoViewAll = document.getElementById('btn-sidebar-ngo-view-all');
+    if (ngoViewAll) {
+        ngoViewAll.addEventListener('click', (e) => {
+            e.preventDefault();
+            const deliveredTab = document.querySelector('#donation-history-tabs .history-tab[data-filter="delivered"]');
+            if (deliveredTab) deliveredTab.click();
+        });
+    }
+
+    // 11. Excel / CSV Export button
+    const excelBtn = document.getElementById('btn-download-history-excel');
+    if (excelBtn) {
+        excelBtn.addEventListener('click', () => {
+            exportDonationsToCSV();
+        });
+    }
+
+    // 12. PDF Export button
+    const pdfBtn = document.getElementById('btn-download-history-pdf');
+    if (pdfBtn) {
+        pdfBtn.addEventListener('click', () => {
+            printDonationHistory();
+        });
+    }
+}
+
 // CANCEL DONATION FUNCTION
 // ============================================
 window.cancelDonation = function(donationId) {
@@ -450,17 +1050,8 @@ window.cancelDonation = function(donationId) {
             if (modal) modal.style.display = 'none';
 
             // Refresh user donations list & stats
-            let userStr = localStorage.getItem('jivahar_user');
-            if (userStr) {
-                const user = JSON.parse(userStr);
-                fetch(`${API_BASE}/donations/${user._id}`)
-                    .then(r => r.json())
-                    .then(d => {
-                        if (d.success) {
-                            window.userDonations = d.donations;
-                            renderDonationsTable(d.donations);
-                        }
-                    });
+            if (typeof window.fetchUserDonations === 'function') {
+                window.fetchUserDonations();
             }
         } else {
             alert("Unable to cancel donation: " + (data.message || "Unknown error"));
@@ -591,7 +1182,20 @@ window.openDonationDetailModal = function(donationId) {
     const cascadeContainer = document.getElementById('modal-cascade-container');
     const currentlyNotified = cascade.currently_notified || [];
     
-    let cascadeHtml = `
+    let cascadeHtml = '';
+    if (donation.assigned_ngo && donation.assigned_ngo.name) {
+        cascadeHtml += `
+            <div style="background:#dcfce7; border:1px solid #86efac; border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <span style="font-size:10px; text-transform:uppercase; font-weight:700; color:#166534; display:block;">Claimed Partner</span>
+                    <strong style="color:#0f172a; font-size:13px; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-building-ngo" style="color:#16a34a;"></i> ${donation.assigned_ngo.name}</strong>
+                </div>
+                ${donation.assigned_ngo.phone ? `<a href="tel:${donation.assigned_ngo.phone}" style="background:#16a34a; color:#fff; text-decoration:none; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600;"><i class="fa-solid fa-phone" style="margin-right:4px;"></i>${donation.assigned_ngo.phone}</a>` : ''}
+            </div>
+        `;
+    }
+
+    cascadeHtml += `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <span style="font-weight:600; color:#475569;">Active Notification Radius:</span>
             <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">${activeRadius} (${activeTier === 1 ? 'Priority Tier 1' : 'Cascade Tier 2'})</span>
@@ -940,7 +1544,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <i class="fa-solid fa-spinner fa-spin" style="font-size: 18px; color: #2563eb;"></i>
                         <div>
                             <strong style="display:block;">Running YOLO Food Detection...</strong>
-                            <span style="font-size:12px; opacity:0.85;">Analyzing uploaded photo with YOLO model from 'new project major'...</span>
+                            <span style="font-size:12px; opacity:0.85;">Analyzing uploaded photo with YOLO vision model from 'models'...</span>
                         </div>
                     </div>
                 `;

@@ -50,9 +50,9 @@ try:
     import io
     import base64
 
-    # Priority 1: Trained food classification model (best.pt)
-    custom_weights = os.path.join(os.path.dirname(__file__), 'new project major', 'food_yolo', 'runs', 'yolo26n_baseline', 'weights', 'best.pt')
-    coco_weights = os.path.join(os.path.dirname(__file__), 'new project major', 'yolo26n.pt')
+    # Priority 1: Trained food classification model (best.pt) in 'models'
+    custom_weights = os.path.join(os.path.dirname(__file__), 'models', 'best.pt')
+    coco_weights = os.path.join(os.path.dirname(__file__), 'models', 'yolo26n.pt')
 
     if os.path.exists(custom_weights):
         yolo_food_model = YOLO(custom_weights)
@@ -71,8 +71,22 @@ def home():
 
 @app.route('/<path:path>')
 def send_static(path):
-    if not path.startswith('api/') and os.path.exists(path):
-        return send_from_directory('.', path)
+    if not path.startswith('api/'):
+        # 1. Direct path check (root or specified)
+        if os.path.exists(path):
+            return send_from_directory('.', path)
+        # 2. CSS folder fallback
+        css_path = os.path.join('css', path)
+        if os.path.exists(css_path):
+            return send_from_directory('css', path)
+        # 3. JS folder fallback
+        js_path = os.path.join('js', path)
+        if os.path.exists(js_path):
+            return send_from_directory('js', path)
+        # 4. Assets folder fallback
+        assets_path = os.path.join('assets', path)
+        if os.path.exists(assets_path):
+            return send_from_directory('assets', path)
     return jsonify({"success": False, "message": "Not Found"}), 404
 
 @app.route('/api/ai/detect-food', methods=['POST'])
@@ -99,14 +113,14 @@ def detect_food():
         # 2. Ensure model is loaded
         if yolo_food_model is None:
             from ultralytics import YOLO
-            custom_weights = os.path.join(os.path.dirname(__file__), 'new project major', 'food_yolo', 'runs', 'yolo26n_baseline', 'weights', 'best.pt')
-            coco_weights = os.path.join(os.path.dirname(__file__), 'new project major', 'yolo26n.pt')
+            custom_weights = os.path.join(os.path.dirname(__file__), 'models', 'best.pt')
+            coco_weights = os.path.join(os.path.dirname(__file__), 'models', 'yolo26n.pt')
             target_weights = custom_weights if os.path.exists(custom_weights) else coco_weights
             if os.path.exists(target_weights):
                 yolo_food_model = YOLO(target_weights)
 
         if yolo_food_model is None:
-            return jsonify({"success": False, "message": "YOLO model weights not found in 'new project major'"}), 500
+            return jsonify({"success": False, "message": "YOLO model weights not found in 'models'"}), 500
 
         # 3. Load image into PIL
         from PIL import Image
@@ -133,7 +147,7 @@ def detect_food():
 
         # Fallback check on COCO model ONLY if custom model weights are not loaded or returned no boxes
         if len(detections) == 0:
-            coco_weights = os.path.join(os.path.dirname(__file__), 'new project major', 'yolo26n.pt')
+            coco_weights = os.path.join(os.path.dirname(__file__), 'models', 'yolo26n.pt')
             if os.path.exists(coco_weights):
                 try:
                     from ultralytics import YOLO
@@ -183,7 +197,7 @@ def detect_food():
 
         food_items = []
         for c_name, grp in class_groups.items():
-            unit = "pieces" if c_name.lower() in ["idli", "vada"] else "plates"
+            unit = "pieces" if c_name.lower() in ["idli", "vada", "puri", "chapathi", "holige", "laddu", "bananna", "banana"] else "plates"
             food_items.append({
                 "name": c_name,
                 "count": grp["count"],
@@ -582,9 +596,8 @@ def calculate_distance_km(lat1, lon1, lat2, lon2):
 TIER2_UNLOCK_MINUTES = 15  # Unlocks 25 km circle after 15 minutes if unclaimed
 
 def evaluate_cascade_status(donation):
-    """Automatically advances notification cascade tier based on elapsed time if unclaimed."""
-    if donation.get('status') != 'Pending':
-        return donation
+    """Safely preserves notification cascade status."""
+    return donation
 
     created_at = donation.get('created_at')
     if not created_at:
@@ -674,6 +687,7 @@ def create_donation():
         # Query all approved registered NGOs
         approved_ngos = list(users_collection.find({"role": "ngo", "approved": True}))
         
+        all_ngos = []
         tier1_ngos = [] # 0 - 15 km (Priority)
         tier2_ngos = [] # 15 - 25 km (Secondary Cascade)
 
@@ -689,43 +703,51 @@ def create_donation():
                     ngo_lat = float(donor_lat) + ((idx) * 0.005 * (1 if idx % 2 == 0 else -1))
                     ngo_lng = float(donor_lng) + ((idx) * 0.006 * (-1 if idx % 3 == 0 else 1))
                 else:
-                    ngo_lat = 12.9784 + (idx * 0.005)
-                    ngo_lng = 77.6408 + (idx * 0.005)
+                    ngo_lat = 15.1511 + (idx * 0.005)
+                    ngo_lng = 76.9062 + (idx * 0.005)
 
-            dist_km = calculate_distance_km(donor_lat or 12.9784, donor_lng or 77.6408, ngo_lat, ngo_lng)
+            dist_km = calculate_distance_km(donor_lat or 15.1511, donor_lng or 76.9062, ngo_lat, ngo_lng)
             
             ngo_info = {
                 "id": str(ngo.get('_id')),
                 "name": ngo.get('name', 'Registered NGO'),
                 "email": ngo.get('email', ''),
                 "phone": ngo.get('phone', ''),
-                "distance_km": round(dist_km, 1)
+                "distance_km": round(dist_km, 2)
             }
+            all_ngos.append(ngo_info)
 
             if dist_km <= 15.0:
                 tier1_ngos.append(ngo_info)
             elif dist_km <= 25.0:
                 tier2_ngos.append(ngo_info)
 
-        # Initial notification goes to Tier 1 (15 km) first, or fallback to Tier 2 (25 km) if empty
-        notified_initial = tier1_ngos if len(tier1_ngos) > 0 else tier2_ngos
-        active_tier = 1 if len(tier1_ngos) > 0 else 2
-        active_radius = "15 km" if active_tier == 1 else "25 km"
+        # Sort all NGOs strictly by proximity ascending (nearest NGO first)
+        all_ngos_sorted = sorted(all_ngos, key=lambda x: x['distance_km'])
+
+        # Only the SINGLE nearest NGO is notified initially!
+        notified_initial = [all_ngos_sorted[0]] if len(all_ngos_sorted) > 0 else []
+        nearest_ngo = all_ngos_sorted[0] if len(all_ngos_sorted) > 0 else None
+        
+        active_tier = 1 if (nearest_ngo and nearest_ngo['distance_km'] <= 15.0) else 2
+        active_radius = f"{nearest_ngo['distance_km']} km" if nearest_ngo else "15 km"
 
         notification_cascade = {
             "active_tier": active_tier,
             "active_radius": active_radius,
+            "ordered_ngos": all_ngos_sorted,
             "tier1_ngos": tier1_ngos,
             "tier2_ngos": tier2_ngos,
             "currently_notified": notified_initial,
             "history": [
                 {
+                    "action": "initial_nearest_notification",
                     "tier": active_tier,
                     "radius": active_radius,
                     "notified_at": datetime.now(timezone.utc).isoformat(),
-                    "ngo_count": len(notified_initial)
+                    "ngo": nearest_ngo
                 }
-            ]
+            ] if nearest_ngo else []
         }
             
         donor_obj_id = ObjectId(str(donor_id)) if (len(str(donor_id)) == 24 and ObjectId.is_valid(str(donor_id))) else str(donor_id)
@@ -917,7 +939,8 @@ def get_donations(donor_id):
     try:
         # Check if donor_id is a valid ObjectId, else use string
         query_id = ObjectId(donor_id) if len(donor_id) == 24 else donor_id
-        donations = list(donations_collection.find({"donor_id": query_id}).sort("created_at", -1))
+        q_or = [{"donor_id": query_id}, {"donor_id": str(donor_id)}]
+        donations = list(donations_collection.find({"$or": q_or}).sort("created_at", -1))
         
         for d in donations:
             evaluate_cascade_status(d)
@@ -935,7 +958,8 @@ def get_donations(donor_id):
 def get_donation_stats(donor_id):
     try:
         query_id = ObjectId(donor_id) if len(donor_id) == 24 else donor_id
-        donations = list(donations_collection.find({"donor_id": query_id}))
+        q_or = [{"donor_id": query_id}, {"donor_id": str(donor_id)}]
+        donations = list(donations_collection.find({"$or": q_or}))
         
         total_donations = len(donations)
         total_kg = 0
@@ -1748,43 +1772,95 @@ def reject_donation_by_ngo(donation_id):
         ngo_id = data.get('ngo_id')
         reason = data.get('reason', 'Passed to next NGO')
 
-        don_id = ObjectId(donation_id) if len(donation_id) == 24 else donation_id
+        don_id = ObjectId(donation_id) if (len(str(donation_id)) == 24 and ObjectId.is_valid(str(donation_id))) else str(donation_id)
         donation = donations_collection.find_one({"_id": don_id})
 
         if not donation:
             return jsonify({"success": False, "message": "Donation not found"}), 404
 
         cascade = donation.get('notification_cascade', {})
+        ordered_ngos = cascade.get('ordered_ngos', [])
+
+        # If ordered_ngos is missing, construct from approved NGOs
+        if not ordered_ngos:
+            donor_lat = donation.get('pickup_location', {}).get('latitude') or donation.get('pickup_details', {}).get('lat')
+            donor_lng = donation.get('pickup_location', {}).get('longitude') or donation.get('pickup_details', {}).get('lng')
+            approved_ngos = list(users_collection.find({"role": "ngo", "approved": True}))
+            idx = 0
+            for ngo in approved_ngos:
+                idx += 1
+                n_lat = ngo.get('lat') or ngo.get('location', {}).get('latitude') or (15.1511 + idx * 0.005)
+                n_lng = ngo.get('lng') or ngo.get('location', {}).get('longitude') or (76.9062 + idx * 0.005)
+                d_km = calculate_distance_km(donor_lat or 15.1511, donor_lng or 76.9062, n_lat, n_lng)
+                ordered_ngos.append({
+                    "id": str(ngo.get('_id')),
+                    "name": ngo.get('name', 'Registered NGO'),
+                    "email": ngo.get('email', ''),
+                    "phone": ngo.get('phone', ''),
+                    "distance_km": round(d_km, 2)
+                })
+            ordered_ngos.sort(key=lambda x: x['distance_km'])
+
+        rejected_by = [str(r) for r in donation.get('rejected_by', [])]
+        if ngo_id and str(ngo_id) not in rejected_by:
+            rejected_by.append(str(ngo_id))
+
+        # Find the next nearest NGO from ordered_ngos that has NOT rejected
+        next_ngo = None
+        for cand in ordered_ngos:
+            if str(cand.get('id')) not in rejected_by:
+                next_ngo = cand
+                break
+
+        now_str = datetime.now(timezone.utc).isoformat()
         history = cascade.get('history', [])
         history.append({
             "action": "ngo_rejected",
             "ngo_id": str(ngo_id) if ngo_id else '',
             "reason": reason,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": now_str
         })
 
-        current_tier = cascade.get('active_tier', 1)
-        next_tier = 2 if current_tier < 2 else 2
-        next_radius = "25 km"
+        if next_ngo:
+            currently_notified = [next_ngo]
+            next_tier = 1 if next_ngo['distance_km'] <= 15.0 else 2
+            next_radius = f"{next_ngo['distance_km']} km"
+            history.append({
+                "action": "cascaded_to_next_nearest",
+                "notified_at": now_str,
+                "ngo": next_ngo,
+                "reason": f"Sequentially cascaded after rejection by previous NGO ({reason})"
+            })
+            msg = f"Donation passed and sequentially routed to next nearest NGO: {next_ngo['name']} ({next_ngo['distance_km']} km away)."
+        else:
+            currently_notified = []
+            next_tier = 2
+            next_radius = "All NGOs Passed"
+            history.append({
+                "action": "all_ngos_rejected",
+                "timestamp": now_str,
+                "reason": "All registered NGOs within proximity have reviewed and passed on this donation."
+            })
+            msg = "Donation passed. All registered NGOs in proximity have reviewed this donation."
 
         update_ops = {
             "$set": {
+                "notification_cascade.ordered_ngos": ordered_ngos,
+                "notification_cascade.currently_notified": currently_notified,
                 "notification_cascade.active_tier": next_tier,
                 "notification_cascade.active_radius": next_radius,
-                "notification_cascade.history": history
+                "notification_cascade.history": history,
+                "rejected_by": rejected_by
             }
         }
-        if ngo_id:
-            update_ops["$addToSet"] = {"rejected_by": str(ngo_id)}
 
-        donations_collection.update_one(
-            {"_id": don_id},
-            update_ops
-        )
+        donations_collection.update_one({"_id": don_id}, update_ops)
 
         return jsonify({
             "success": True,
-            "message": "Donation passed to the next available tier/NGO."
+            "message": msg,
+            "next_ngo": next_ngo,
+            "currently_notified": currently_notified
         }), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
