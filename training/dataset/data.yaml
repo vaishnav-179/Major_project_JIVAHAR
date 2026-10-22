@@ -1,0 +1,20 @@
+path: .
+train: images/train
+val: images/test
+test: images/test
+
+names:
+  0: bananna
+  1: chapathi
+  2: chilli
+  3: chutney
+  4: colored rice
+  5: dosa
+  6: holige
+  7: idli
+  8: laddu
+  9: puri
+  10: rice
+  11: upma
+  12: vada
+  13: vermicelli upma
